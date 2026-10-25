@@ -3,8 +3,9 @@
 import { formatDurationLabel, formatLapTime, pad2, splitHMS } from '../../utils/time'
 
 type Mode = 'clock' | 'stopwatch' | 'countdown' | 'pomodoro'
-type StyleKey = 'white' | 'green' | 'amber'
-type FontSizeKey = 's' | 'm' | 'l'
+type StyleKey = 'white' | 'green' | 'amber' | 'cyan'
+type FontSizeKey = 's' | 'm' | 'l' | 'xl'
+type FontFamilyKey = 'seven' | 'rounded' | 'classic'
 type EditUnit = 'h' | 'm' | 's'
 
 type EndAlert = 'vibrate' | 'sound' | 'both'
@@ -46,18 +47,27 @@ const MODE_COMPONENTS: Record<Mode, string> = {
   pomodoro: '#pomodoro-timer',
 }
 
-const STYLE_ORDER: StyleKey[] = ['white', 'green', 'amber']
+const STYLE_ORDER: StyleKey[] = ['white', 'green', 'amber', 'cyan']
 const STYLE_LABELS: Record<StyleKey, string> = {
   white: '白色',
   green: '绿色',
   amber: '琥珀',
+  cyan: '青蓝',
 }
 
-const FONT_SIZE_ORDER: FontSizeKey[] = ['s', 'm', 'l']
+const FONT_SIZE_ORDER: FontSizeKey[] = ['s', 'm', 'l', 'xl']
 const FONT_SIZE_LABELS: Record<FontSizeKey, string> = {
   s: '小',
   m: '中',
   l: '大',
+  xl: '超大',
+}
+
+const FONT_FAMILY_ORDER: FontFamilyKey[] = ['seven', 'rounded', 'classic']
+const FONT_FAMILY_LABELS: Record<FontFamilyKey, string> = {
+  seven: '数码管',
+  rounded: '圆角',
+  classic: '经典',
 }
 
 // 主时间滑动调时：每滑过这么多 px 变化 1
@@ -80,6 +90,9 @@ let pendingAction: ModeAction | null = null
 let editDrag: { unit: EditUnit; startY: number; steps: number } | null = null
 let beepAudio: WechatMiniprogram.InnerAudioContext | null = null
 let seededAlarm = false
+let alertInterval: ReturnType<typeof setInterval> | undefined
+let alertStopTimer: ReturnType<typeof setTimeout> | undefined
+let alertStep = 0
 
 Component({
   data: {
@@ -93,6 +106,10 @@ Component({
     subTime: '',
     running: false,
     finished: false,
+    started: false,
+    startLabel: '开始',
+    pomodoroPhase: 'work' as 'work' | 'rest',
+    nextText: '',
     focusMode: false,
     capabilities: NO_CAPABILITIES,
     actions: [] as ModeAction[],
@@ -100,6 +117,9 @@ Component({
     // 全局设置：主时间字号 / 是否显示百分秒
     fontSize: 'm' as FontSizeKey,
     fontSizeLabel: FONT_SIZE_LABELS.m,
+    fontFamily: 'seven' as FontFamilyKey,
+    fontFamilyLabel: FONT_FAMILY_LABELS.seven,
+    gradient: false,
     showCentis: true,
 
     // 倒计时 / 番茄未开始时的「主时间滑动调时」
@@ -136,6 +156,11 @@ Component({
     durH: 0,
     durM: 0,
     durS: 0,
+
+    // 左上角客服入口
+    contactPanelVisible: false,
+    contactQrVisible: true,
+    wechatId: 'chenshiming0802',
   },
 
   lifetimes: {
@@ -145,6 +170,7 @@ Component({
       pendingAction = null
       editDrag = null
       activeMode = this.data.mode
+      this._stopAlert()
       this._loadPersisted()
     },
     ready() {
@@ -152,6 +178,7 @@ Component({
       if (comp) comp.activate()
     },
     detached() {
+      this._stopAlert()
       wx.setKeepScreenOn({ keepScreenOn: false })
     },
   },
@@ -161,6 +188,7 @@ Component({
       if (this.data.running) wx.setKeepScreenOn({ keepScreenOn: true })
     },
     hide() {
+      this._stopAlert()
       wx.setKeepScreenOn({ keepScreenOn: false })
     },
   },
@@ -171,6 +199,7 @@ Component({
       const mode = e.currentTarget.dataset.mode as Mode
       if (mode === activeMode) return
 
+      this._stopAlert()
       const prev = this.selectComponent(MODE_COMPONENTS[activeMode])
       if (prev) prev.deactivate()
 
@@ -183,6 +212,10 @@ Component({
         subTime: '',
         running: false,
         finished: false,
+        started: false,
+        startLabel: '开始',
+        pomodoroPhase: 'work',
+        nextText: '',
         capabilities: NO_CAPABILITIES,
         actions: [],
         durationTarget: '',
@@ -231,9 +264,14 @@ Component({
         wx.setKeepScreenOn({ keepScreenOn: !!detail.running })
       }
 
+      const running = !!detail.running
+      const finished = !!detail.finished
+      const started = !!detail.started
       const updates: any = {
-        running: !!detail.running,
-        finished: !!detail.finished,
+        running,
+        finished,
+        started,
+        startLabel: !running && started && !finished ? '继续' : '开始',
         subTime: detail.subTime || '',
         capabilities: detail.capabilities || NO_CAPABILITIES,
         actions: (detail.actions || []).map((a: ModeAction) => ({
@@ -241,6 +279,11 @@ Component({
           value: a.key === 'limit' && a.valueMs === 0 ? '不限' : formatDurationLabel(a.valueMs),
         })),
       }
+
+      if (detail.phase === 'work' || detail.phase === 'rest') {
+        updates.pomodoroPhase = detail.phase
+      }
+      if (typeof detail.nextText === 'string') updates.nextText = detail.nextText
 
       // 时钟闹钟上报
       if (typeof detail.alarmOn === 'boolean') updates.alarmOn = detail.alarmOn
@@ -308,16 +351,26 @@ Component({
 
     // ===== 主操作（重置 / 暂停 / 开始） =====
     onStart() {
+      this._stopAlert()
+      if (activeMode === 'pomodoro' && this.data.finished) return
       const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
       if (comp) comp.start()
     },
     onPause() {
+      this._stopAlert()
+      if (activeMode === 'pomodoro' && this.data.finished) return
       const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
       if (comp) comp.pause()
     },
     onReset() {
+      this._stopAlert()
       const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
       if (comp) comp.reset()
+    },
+    onPomodoroNext() {
+      this._stopAlert()
+      const comp = this.selectComponent(MODE_COMPONENTS.pomodoro)
+      if (comp) comp.start()
     },
 
     // ===== 模式专属按钮 =====
@@ -474,6 +527,17 @@ Component({
       this.setData({ fontSize, fontSizeLabel: FONT_SIZE_LABELS[fontSize] })
       wx.setStorageSync('timer.fontSize', fontSize)
     },
+    onCycleFontFamily() {
+      const current = FONT_FAMILY_ORDER.indexOf(this.data.fontFamily)
+      const fontFamily = FONT_FAMILY_ORDER[(current + 1) % FONT_FAMILY_ORDER.length]
+      this.setData({ fontFamily, fontFamilyLabel: FONT_FAMILY_LABELS[fontFamily] })
+      wx.setStorageSync('timer.fontFamily', fontFamily)
+    },
+    onToggleGradient() {
+      const gradient = !this.data.gradient
+      this.setData({ gradient })
+      wx.setStorageSync('timer.gradient', gradient)
+    },
     onTogglePrecision() {
       const showCentis = !this.data.showCentis
       this.setData({ showCentis })
@@ -488,8 +552,23 @@ Component({
 
     // ===== 结束 / 闹钟提醒：按三态设置执行 =====
     _playAlert() {
-      if (this.data.endAlert === 'vibrate' || this.data.endAlert === 'both') wx.vibrateLong()
-      if (this.data.endAlert === 'sound' || this.data.endAlert === 'both') this._playSound()
+      this._stopAlert()
+      const sound = this.data.endAlert === 'sound' || this.data.endAlert === 'both'
+      const vibrate = this.data.endAlert === 'vibrate' || this.data.endAlert === 'both'
+      alertStep = 0
+
+      const tick = () => {
+        // 3 声一组，组间 2 个空拍（约 1.2s），60s 后由 alertStopTimer 停止
+        if (alertStep % 5 < 3) {
+          if (sound) this._playSound()
+          if (vibrate) wx.vibrateShort({ type: 'medium' })
+        }
+        alertStep += 1
+      }
+
+      tick()
+      alertInterval = setInterval(tick, 400)
+      alertStopTimer = setTimeout(() => this._stopAlert(), 60000)
     },
     _playSound() {
       if (!beepAudio) {
@@ -498,6 +577,18 @@ Component({
       }
       beepAudio.stop()
       beepAudio.play()
+    },
+    _stopAlert() {
+      if (alertInterval) {
+        clearInterval(alertInterval)
+        alertInterval = undefined
+      }
+      if (alertStopTimer) {
+        clearTimeout(alertStopTimer)
+        alertStopTimer = undefined
+      }
+      alertStep = 0
+      if (beepAudio) beepAudio.stop()
     },
 
     // ===== 样式 / 主题 =====
@@ -524,6 +615,21 @@ Component({
     onToggleFocus() {
       this.setData({ focusMode: !this.data.focusMode })
     },
+
+    // ===== 左上角客服入口 =====
+    openContactPanel() {
+      this.setData({ contactPanelVisible: true, contactQrVisible: true })
+    },
+    closeContactPanel() {
+      this.setData({ contactPanelVisible: false })
+    },
+    copyWechatId() {
+      wx.setClipboardData({ data: this.data.wechatId })
+    },
+    onQrError() {
+      this.setData({ contactQrVisible: false })
+    },
+
     noop() {},
 
     // ===== 持久化（主题 / 样式 / 字号 / 精度；时长由各按钮的 storageKey 负责） =====
@@ -532,18 +638,25 @@ Component({
       const style = wx.getStorageSync('timer.style')
       const actionSide = wx.getStorageSync('timer.actionSide')
       const fontSize = wx.getStorageSync('timer.fontSize')
+      const fontFamily = wx.getStorageSync('timer.fontFamily')
+      const gradient = wx.getStorageSync('timer.gradient')
       const showCentis = wx.getStorageSync('timer.showCentis')
       const updates: any = {}
       if (theme === 'light' || theme === 'dark') updates.theme = theme
-      if (style === 'white' || style === 'green' || style === 'amber') {
+      if (style === 'white' || style === 'green' || style === 'amber' || style === 'cyan') {
         updates.style = style
         updates.styleLabel = STYLE_LABELS[style as StyleKey]
       }
       if (actionSide === 'left' || actionSide === 'right') updates.actionSide = actionSide
-      if (fontSize === 's' || fontSize === 'm' || fontSize === 'l') {
+      if (fontSize === 's' || fontSize === 'm' || fontSize === 'l' || fontSize === 'xl') {
         updates.fontSize = fontSize
         updates.fontSizeLabel = FONT_SIZE_LABELS[fontSize as FontSizeKey]
       }
+      if (fontFamily === 'seven' || fontFamily === 'rounded' || fontFamily === 'classic') {
+        updates.fontFamily = fontFamily
+        updates.fontFamilyLabel = FONT_FAMILY_LABELS[fontFamily as FontFamilyKey]
+      }
+      if (typeof gradient === 'boolean') updates.gradient = gradient
       if (typeof showCentis === 'boolean') updates.showCentis = showCentis
       const endAlert = wx.getStorageSync('timer.endAlert')
       if (endAlert === 'vibrate' || endAlert === 'sound' || endAlert === 'both') {

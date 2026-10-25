@@ -1,6 +1,6 @@
 // pomodoro-timer.ts
 // 番茄计时：工作 / 休息阶段循环。震动、亮屏与「时间到」由页面统一处理，样式由页面统一下发。
-import { formatHMS, formatHMSxx } from '../../utils/time'
+import { formatDurationLabel, formatHMS, formatHMSxx } from '../../utils/time'
 
 const TICK_MS = 16
 const DEFAULT_WORK_MS = 25 * 60 * 1000
@@ -227,21 +227,33 @@ Component({
     _subTime(): string {
       const { phase, finished, completed } = this.data
       if (phase === 'work') {
-        return finished ? `专注 · 已完成 ${completed} 个番茄` : `专注 · 第 ${completed + 1} 个番茄`
+        return finished
+          ? `工作时间 · 已完成 ${completed} 个番茄`
+          : `工作时间 · 第 ${completed + 1} 个番茄`
       }
-      return `休息 · 已完成 ${completed} 个番茄`
+      return `休息时间 · 已完成 ${completed} 个番茄`
+    },
+
+    _nextText(): string {
+      if (!this.data.finished) return ''
+      const next = nextPhase(this.data.phase)
+      const label = next === 'rest' ? '休息时间' : '工作时间'
+      return `进入${label} ${formatDurationLabel(this._durationOf(next))}`
     },
 
     _emitState() {
       this.triggerEvent('statechange', {
         running: this.data.running,
         finished: this.data.finished,
+        started,
         subTime: this._subTime(),
         capabilities: { toggle: true, reset: true },
         actions: buildActions(),
         editable: !started,
         editKey: this.data.phase,
         editValueMs: this._durationOf(this.data.phase),
+        phase: this.data.phase,
+        nextText: this._nextText(),
       })
     },
   },

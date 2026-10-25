@@ -5,6 +5,7 @@ import { formatHMS, formatHMSxx } from '../../utils/time'
 const TICK_MS = 16
 
 let isActive = false
+let started = false
 let baseMs = 0
 let startAt = 0
 let limitMs = 0
@@ -44,6 +45,7 @@ Component({
   lifetimes: {
     attached() {
       isActive = false
+      started = false
       baseMs = 0
       startAt = 0
       limitMs = 0
@@ -90,6 +92,7 @@ Component({
     },
     reset() {
       this._stopTick()
+      started = false
       baseMs = 0
       startAt = 0
       laps = []
@@ -112,6 +115,7 @@ Component({
     },
 
     _start() {
+      started = true
       if (this.data.finished) {
         baseMs = 0
         laps = []
@@ -173,6 +177,7 @@ Component({
       this.triggerEvent('statechange', {
         running: this.data.running,
         finished: this.data.finished,
+        started,
         subTime: '',
         capabilities: { toggle: true, reset: true },
         actions: buildActions(),

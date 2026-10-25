@@ -1,6 +1,15 @@
 <!--index.wxml-->
 <view class="page theme-{{theme}}" bindtap="onToggleFocus">
 
+  <!-- 全屏氛围光：仅番茄休息阶段淡入 -->
+  <view class="ambient {{mode === 'pomodoro' && pomodoroPhase === 'rest' ? 'is-on' : ''}}"></view>
+
+  <!-- 左上角客服入口 -->
+  <view class="contact-entry" wx:if="{{!focusMode}}" catchtap="openContactPanel">
+    <view class="contact-icon"></view>
+    <text>向我提需求</text>
+  </view>
+
   <!-- 1 顶部模式栏 -->
   <view class="mode-bar" wx:if="{{!focusMode}}" catchtap="noop">
     <view wx:for="{{modes}}" wx:key="key" class="mode-tab {{mode === item.key ? 'active' : ''}}"
@@ -10,10 +19,16 @@
   <!-- 2/3 子时间 + 主时间：作为一组垂直居中，间距固定 -->
   <view class="stage">
     <!-- 子时间区：固定占位，空字符串也保留高度 -->
-    <view class="sub-time">{{subTime}}</view>
+    <view class="sub-time">
+      <view class="phase-badge phase-{{pomodoroPhase}}" wx:if="{{mode === 'pomodoro'}}">
+        <view class="phase-dot"></view>
+        <text>{{subTime}}</text>
+      </view>
+      <block wx:else>{{subTime}}</block>
+    </view>
 
     <!-- 主时间区：4 个组件常驻，非激活项 / 可编辑态隐藏 -->
-    <view class="main-time style-{{style}} font-{{fontSize}} {{finished ? 'is-finished' : ''}}">
+    <view class="main-time style-{{style}} size-{{fontSize}} ff-{{fontFamily}} {{gradient ? 'is-gradient' : ''}} {{finished ? 'is-finished' : ''}}">
       <!-- 倒计时 / 番茄未开始时：页面自绘分段，可上下滑动调时 -->
       <view class="edit-time" wx:if="{{editable}}">
         <view class="edit-seg" data-unit="h" bindtouchstart="onEditTouchStart"
@@ -51,6 +66,11 @@
       <pomodoro-timer id="pomodoro-timer"
                       class="mode-host {{mode === 'pomodoro' && !editable ? '' : 'hidden'}}"
                       data-mode="pomodoro" show-centis="{{showCentis}}" bind:statechange="onStateChange" />
+
+      <!-- 番茄结束态：手动点提示进入下一阶段 -->
+      <view class="next-stage"
+            wx:if="{{mode === 'pomodoro' && finished && !focusMode && nextText}}"
+            catchtap="onPomodoroNext">{{nextText}}</view>
     </view>
 
     <!-- 与子时间等高的空占位，让主时间成为整组的垂直中心 -->
@@ -64,10 +84,10 @@
   <view class="action-group {{actionSide === 'left' ? 'is-left' : ''}}"
         wx:if="{{!focusMode && (capabilities.toggle || capabilities.reset)}}" catchtap="noop">
     <view class="action-btn action-reset" wx:if="{{capabilities.reset}}" bindtap="onReset">重置</view>
-    <view class="action-btn action-pause {{running ? '' : 'is-disabled'}}"
+    <view class="action-btn action-pause {{(!running || (mode === 'pomodoro' && finished)) ? 'is-disabled' : ''}}"
           wx:if="{{capabilities.toggle}}" bindtap="onPause">暂停</view>
-    <view class="action-btn action-start {{running ? 'is-disabled' : ''}}"
-          wx:if="{{capabilities.toggle}}" bindtap="onStart">开始</view>
+    <view class="action-btn action-start {{(running || (mode === 'pomodoro' && finished)) ? 'is-disabled' : ''}}"
+          wx:if="{{capabilities.toggle}}" bindtap="onStart">{{startLabel}}</view>
   </view>
 
   <!-- 5b 计次按钮：正计时运行中，位于操作组对侧 -->
@@ -85,6 +105,10 @@
         <text class="toolbar-btn__desc">背景颜色</text>
         <text class="toolbar-btn__value">{{theme === 'dark' ? '深色' : '浅色'}}</text>
       </view>
+      <view class="toolbar-btn" bindtap="onCycleFontFamily">
+        <text class="toolbar-btn__desc">字体</text>
+        <text class="toolbar-btn__value">{{fontFamilyLabel}}</text>
+      </view>
       <view class="toolbar-btn" bindtap="onCycleFontSize">
         <text class="toolbar-btn__desc">字号</text>
         <text class="toolbar-btn__value">{{fontSizeLabel}}</text>
@@ -92,6 +116,10 @@
       <view class="toolbar-btn" bindtap="onTogglePrecision">
         <text class="toolbar-btn__desc">精度</text>
         <text class="toolbar-btn__value">{{showCentis ? '高' : '低'}}</text>
+      </view>
+      <view class="toolbar-btn" bindtap="onToggleGradient">
+        <text class="toolbar-btn__desc">渐变</text>
+        <text class="toolbar-btn__value">{{gradient ? '开' : '关'}}</text>
       </view>
       <view class="toolbar-btn" bindtap="onCycleEndAlert">
         <text class="toolbar-btn__desc">结束提醒</text>
@@ -163,6 +191,25 @@
     </scroll-view>
     <view class="panel-actions">
       <button class="panel-btn secondary" bindtap="closeLapPanel">关闭</button>
+    </view>
+  </view>
+
+  <!-- 10 联系我 -->
+  <view class="mask" wx:if="{{contactPanelVisible}}" catchtap="closeContactPanel"></view>
+  <view class="panel contact-panel" wx:if="{{contactPanelVisible}}" catchtap="noop">
+    <view class="panel-title">联系我</view>
+    <!-- 横屏高度有限：左侧文字与按钮，右侧二维码，避免竖排超屏 -->
+    <view class="contact-body">
+      <view class="contact-info">
+        <view class="contact-tip">使用遇到问题，或想要新功能，直接加我微信</view>
+        <text class="contact-id" selectable>{{wechatId}}</text>
+        <view class="panel-actions">
+          <button class="panel-btn" bindtap="copyWechatId">复制微信号</button>
+          <button class="panel-btn secondary" bindtap="closeContactPanel">关闭</button>
+        </view>
+      </view>
+      <image class="contact-qr" wx:if="{{contactQrVisible}}" src="/assets/contact-qr.jpg"
+             mode="aspectFit" show-menu-by-longpress binderror="onQrError" />
     </view>
   </view>
 </view>

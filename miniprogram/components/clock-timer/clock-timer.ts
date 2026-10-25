@@ -145,6 +145,7 @@ Component({
       this.triggerEvent('statechange', {
         running: false,
         finished: false,
+        started: false,
         subTime: dateStr,
         capabilities: { toggle: false, reset: false },
         actions: [],

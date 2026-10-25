@@ -48,6 +48,26 @@ page {
   --glow: rgba(26, 156, 58, 0.16);
 }
 
+/* 全屏氛围光：仅番茄休息阶段淡入，不拦截点击 */
+.ambient {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(34, 211, 238, 0.16) 100%);
+}
+.ambient.is-on {
+  opacity: 1;
+}
+.theme-light .ambient {
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(8, 145, 178, 0.08) 100%);
+}
+
 /* ===== 1 顶部模式栏 ===== */
 .mode-bar {
   position: relative;
@@ -72,6 +92,44 @@ page {
   color: var(--fg);
 }
 
+/* ===== 左上角客服入口 ===== */
+.contact-entry {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 10px);
+  left: calc(env(safe-area-inset-left) + 12px);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--pill-bg);
+  color: var(--pill-text);
+  font-size: 12px;
+  line-height: 30px;
+  white-space: nowrap;
+}
+.contact-icon {
+  position: relative;
+  width: 15px;
+  height: 12px;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.contact-icon::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  bottom: -4px;
+  width: 5px;
+  height: 5px;
+  border-left: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+
 /* ===== 2/3 子时间 + 主时间：铺满整屏居中，上下栏显隐不改变位置 ===== */
 .stage {
   position: absolute;
@@ -84,6 +142,9 @@ page {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  box-sizing: border-box;
   overflow: hidden;
 }
 
@@ -97,6 +158,45 @@ page {
   letter-spacing: 2px;
   /* 视觉下移一点，不改变布局，主时间仍保持精确居中 */
   transform: translateY(4px);
+}
+
+/* 番茄阶段徽标：工作绿 / 休息青蓝，一眼可辨 */
+.phase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 17px;
+  line-height: 24px;
+  letter-spacing: 1px;
+  border: 1px solid transparent;
+}
+.phase-work {
+  color: #34d058;
+  background: rgba(52, 208, 88, 0.12);
+  border-color: rgba(52, 208, 88, 0.35);
+}
+.phase-rest {
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.12);
+  border-color: rgba(34, 211, 238, 0.4);
+}
+.theme-light .phase-work {
+  color: #1a9c3a;
+  background: rgba(26, 156, 58, 0.1);
+  border-color: rgba(26, 156, 58, 0.28);
+}
+.theme-light .phase-rest {
+  color: #0891b2;
+  background: rgba(8, 145, 178, 0.1);
+  border-color: rgba(8, 145, 178, 0.28);
+}
+.phase-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 /* 主时间下方空占位：与子时间等高，抵消子时间在整组中的高度，使主时间精确居中 */
@@ -116,11 +216,11 @@ page {
   /* 配色档通过 CSS 变量下发到组件内部文字 */
   --digit-color: var(--fg);
   --digit-glow: var(--glow);
-  /* 主时间字号：小 / 中 / 大，页面设置栏切换 */
+  /* 主时间字号：小 / 中 / 大 / 超大，页面设置栏切换 */
   --main-font-size: 10.5vw;
 
   /* 字体类属性可继承进自定义组件，作为 apply-shared 之外的第二重保障 */
-  font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
+  font-family: var(--digit-font, 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace);
   font-size: var(--main-font-size);
   line-height: 1.2;
   letter-spacing: 2px;
@@ -129,24 +229,85 @@ page {
   white-space: nowrap;
   text-shadow: 0 0 20px var(--digit-glow);
 }
-.main-time.font-s {
+.main-time.size-s {
   --main-font-size: 8.5vw;
 }
-.main-time.font-l {
+.main-time.size-m {
+  --main-font-size: 10.5vw;
+}
+.main-time.size-l {
   --main-font-size: 13vw;
+}
+.main-time.size-xl {
+  --main-font-size: 15.5vw;
+  /* 安全区感知：按可用宽度反推字号。最长内容为 8 位数字 + 2 冒号 + 1 点
+     ≈ 5.94em（三款字体advance一致），两侧各留 12px 余量。
+     旧客户端若不支持 min()，本条整句失效，回退到上面的 15.5vw。 */
+  font-size: calc(min(15.5vw, (100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 24px) / 5.96));
+}
+.main-time.size-xl .main-time__value,
+.main-time.size-xl .edit-time {
+  font-size: calc(min(15.5vw, (100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 24px) / 5.96));
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+/* 字体族：七段（默认）/ 圆角 / 经典 */
+.main-time.ff-seven {
+  --digit-font: 'TimerSeven', "SF Mono", Menlo, Consolas, monospace;
+}
+.main-time.ff-rounded {
+  --digit-font: 'TimerRounded', "SF Pro Rounded", "PingFang SC", sans-serif;
+}
+.main-time.ff-classic {
+  --digit-font: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
+}
+
+/* 配色与渐变端点 */
+.main-time.style-white {
+  --grad-from: #e6e6e6;
+  --grad-to: #22d3ee;
 }
 .main-time.style-green {
   --digit-color: #34d058;
   --digit-glow: rgba(52, 208, 88, 0.45);
+  --grad-from: #34d058;
+  --grad-to: #22d3ee;
 }
 .main-time.style-amber {
   --digit-color: #ffb020;
   --digit-glow: rgba(255, 176, 32, 0.45);
+  --grad-from: #ffb020;
+  --grad-to: #ff6b6b;
+}
+.main-time.style-cyan {
+  --digit-color: #22d3ee;
+  --digit-glow: rgba(34, 211, 238, 0.45);
+  --grad-from: #22d3ee;
+  --grad-to: #8b7cf6;
+}
+.theme-light .main-time.style-white {
+  --grad-from: #111111;
+  --grad-to: #0891b2;
+}
+.theme-light .main-time.style-green {
+  --grad-from: #1a9c3a;
+  --grad-to: #0891b2;
+}
+.theme-light .main-time.style-amber {
+  --grad-from: #b06a00;
+  --grad-to: #d93a3a;
+}
+.theme-light .main-time.style-cyan {
+  --digit-color: #0891b2;
+  --digit-glow: rgba(8, 145, 178, 0.3);
+  --grad-from: #0891b2;
+  --grad-to: #6d5ce7;
 }
 
 /* 组件内数字文字：4 个组件共用这一条（组件 json 开启 apply-shared） */
 .main-time__value {
-  font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
+  font-family: var(--digit-font, 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace);
   color: var(--digit-color, var(--fg));
   font-size: var(--main-font-size, 10.5vw);
   line-height: 1.2;
@@ -156,11 +317,33 @@ page {
   text-shadow: 0 0 20px var(--digit-glow, var(--glow));
 }
 
+/* 渐变数字：左下 → 右上 */
+.main-time.is-gradient .main-time__value,
+.main-time.is-gradient .edit-time {
+  background-image: linear-gradient(to top right, var(--grad-from), var(--grad-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+/* 编辑态的分段是 inline-block，父级 background-clip:text 不一定能覆盖到它们的字形，
+   因此每个分段各自挂同一渐变，保证任何机型上都不会出现「文字透明却无背景」 */
+.main-time.is-gradient .edit-time .edit-seg,
+.main-time.is-gradient .edit-time .edit-colon,
+.main-time.is-gradient .edit-time .edit-frac {
+  background-image: linear-gradient(to top right, var(--grad-from), var(--grad-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
 /* 可滑动调时的分段（页面自绘，替代组件显示） */
 .edit-time {
   display: flex;
   align-items: baseline;
   justify-content: center;
+  font-family: var(--digit-font, 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace);
   font-size: var(--main-font-size);
   line-height: 1.2;
   color: var(--digit-color);
@@ -196,6 +379,26 @@ page {
 }
 .edit-hint.is-faded {
   opacity: 0;
+}
+
+/* 番茄结束态：下一阶段提示，点击进入 */
+.next-stage {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
+  z-index: 2;
+  padding: 4px 16px;
+  border-radius: 999px;
+  background: var(--pill-bg);
+  color: var(--accent);
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 15px;
+  line-height: 26px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  text-shadow: none;
 }
 
 /* 时钟闹钟提示：与「上下滑动调整」同款，绝对定位不参与布局 */
@@ -238,7 +441,19 @@ page {
 .main-time.is-finished {
   --digit-color: #ff453a;
   --digit-glow: rgba(255, 69, 58, 0.55);
+}
+/* 只让数字闪烁，避免「进入下一阶段」提示跟着闪 */
+.main-time.is-finished .main-time__value {
   animation: blink 0.5s ease-in-out infinite alternate;
+}
+
+/* 结束态优先于渐变：回到纯红，保留闪烁 */
+.main-time.is-gradient.is-finished .main-time__value {
+  background-image: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-text-fill-color: var(--digit-color);
+  color: var(--digit-color);
 }
 
 /* 组件宿主：显示 / 隐藏 */
@@ -295,6 +510,7 @@ page {
 }
 .action-btn.is-disabled {
   opacity: 0.35;
+  pointer-events: none;
 }
 
 /* ===== 5b 计次按钮（操作组对侧） ===== */
@@ -328,7 +544,7 @@ page {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 12px 0 24px;
+  padding: 10px 0 calc(4px + env(safe-area-inset-bottom));
 }
 .toolbar-row {
   display: flex;
@@ -339,7 +555,7 @@ page {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4px 10px;
+  padding: 4px 9px;
   border-radius: 999px;
   background: var(--pill-bg);
 }
@@ -422,6 +638,63 @@ page {
 .panel-btn.secondary {
   background: var(--pill-bg);
   color: var(--fg);
+}
+
+/* ===== 10 联系我弹层（横屏：左文右码，控制总高度 ≤ 300px） ===== */
+.contact-panel {
+  width: 520px;
+  max-width: calc(100vw - 40px);
+  padding: 22px;
+}
+.contact-panel .panel-title {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+.contact-body {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.contact-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.contact-tip {
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--dim);
+  margin-bottom: 10px;
+}
+.contact-id {
+  display: block;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--pill-bg);
+  color: var(--fg);
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: 1px;
+  text-align: center;
+}
+.contact-panel .panel-actions {
+  gap: 10px;
+}
+.contact-panel .panel-btn {
+  font-size: 20px;
+  line-height: 2.2;
+}
+.contact-qr {
+  display: block;
+  flex: none;
+  width: 150px;
+  height: 150px;
+  margin: 0;
+  border-radius: 10px;
+  background: #ffffff;
 }
 
 /* ===== 9 计次浮层列表 ===== */

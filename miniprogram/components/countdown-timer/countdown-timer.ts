@@ -185,6 +185,7 @@ Component({
       this.triggerEvent('statechange', {
         running: this.data.running,
         finished: this.data.finished,
+        started,
         subTime: '',
         capabilities: { toggle: true, reset: true },
         actions: buildActions(),
