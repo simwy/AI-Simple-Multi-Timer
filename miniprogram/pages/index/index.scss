@@ -95,6 +95,8 @@ page {
   color: var(--dim);
   font-size: 22px;
   letter-spacing: 2px;
+  /* 视觉下移一点，不改变布局，主时间仍保持精确居中 */
+  transform: translateY(4px);
 }
 
 /* 主时间下方空占位：与子时间等高，抵消子时间在整组中的高度，使主时间精确居中 */
@@ -252,7 +254,7 @@ page {
   justify-content: center;
   font-size: 14px;
   color: var(--fg);
-  background: rgba(128, 128, 128, 0.15);
+  background: rgba(128, 128, 128, 0.32);
 }
 .action-btn.is-disabled {
   opacity: 0.35;
