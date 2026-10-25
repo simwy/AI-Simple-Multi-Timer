@@ -152,12 +152,14 @@ page {
   transform: translateY(calc(0px - var(--stage-lift)));
 }
 
-/* 子时间区（固定高度，切换模式不跳动） */
+/* 子时间区（固定高度，切换模式不跳动；水平居中） */
 .sub-time {
+  width: 100%;
   height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
   color: var(--dim);
   font-size: 18px;
   letter-spacing: 2px;
@@ -583,6 +585,26 @@ page {
   line-height: 1.2;
   letter-spacing: 0.5px;
 }
+/* 第二行始终占位：收起时只隐藏，不改变第一行位置；窄屏自动换行 */
+.toolbar-row--common {
+  flex-wrap: wrap;
+  max-width: 100vw;
+  padding: 0 12px;
+  box-sizing: border-box;
+  transition: opacity 0.15s ease;
+}
+.toolbar-row--common.is-closed {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+/* 重置设置：红色文案，降低误触后的无感 */
+.toolbar-btn--reset .toolbar-btn__desc {
+  color: #ff6b6b;
+}
+.theme-light .toolbar-btn--reset .toolbar-btn__desc {
+  color: #d93a3a;
+}
 
 /* ===== 7 时长设置弹层 ===== */
 .mask {
@@ -605,6 +627,31 @@ page {
   width: 440px;
   z-index: 11;
   color: var(--fg);
+  transition: top 0.18s ease, transform 0.18s ease, padding 0.18s ease;
+}
+/* 键盘弹起（横屏键盘很高）：弹层整体上移并紧凑排版，保证「确定」可见可点 */
+.panel.is-raised {
+  top: 10px;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+}
+.panel.is-raised .panel-title {
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+.panel.is-raised .panel-label {
+  display: none;
+}
+.panel.is-raised .panel-row {
+  margin-bottom: 8px;
+}
+.panel.is-raised .panel-input {
+  padding: 4px 0;
+  font-size: 18px;
+}
+.panel.is-raised .panel-btn {
+  font-size: 14px;
+  line-height: 1.5;
 }
 .panel-title {
   font-size: 20px;

@@ -107,6 +107,11 @@ Component({
       limitMs = Math.max(0, Number(ms) || 0)
       this._emitState()
     },
+    /** 「重置设置」：结束上限回到默认（不限），不影响正在走的计时 */
+    resetDefaults() {
+      limitMs = 0
+      this._emitState()
+    },
     /** 页面「计次」按钮：记录当前累计时间与相对上一条的分段 */
     lap() {
       if (!this.data.running) return

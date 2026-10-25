@@ -11,9 +11,14 @@ type Phase = 'work' | 'rest'
 
 let isActive = false
 let started = false
+// manualWorkMs / manualRestMs：用户手动设置的时长（落盘）；
+// workMs / restMs：当前生效的时长，重置第一次回手动值、第二次回默认值。
+let manualWorkMs = DEFAULT_WORK_MS
+let manualRestMs = DEFAULT_REST_MS
 let workMs = DEFAULT_WORK_MS
 let restMs = DEFAULT_REST_MS
 let remainingMs = DEFAULT_WORK_MS
+let nextResetUsesDefault = false
 let endAt = 0
 let tickTimer: ReturnType<typeof setInterval> | undefined
 
@@ -64,9 +69,12 @@ Component({
     attached() {
       isActive = false
       started = false
+      manualWorkMs = DEFAULT_WORK_MS
+      manualRestMs = DEFAULT_REST_MS
       workMs = DEFAULT_WORK_MS
       restMs = DEFAULT_REST_MS
       remainingMs = workMs
+      nextResetUsesDefault = false
       endAt = 0
       this.setData({
         display: this._fmt(workMs),
@@ -114,9 +122,13 @@ Component({
     pause() {
       if (this.data.running) this._pause()
     },
+    /** 第一次重置回用户手动设置的工作 / 休息时长，第二次回默认值，如此交替 */
     reset() {
       this._stopTick()
       started = false
+      workMs = nextResetUsesDefault ? DEFAULT_WORK_MS : manualWorkMs
+      restMs = nextResetUsesDefault ? DEFAULT_REST_MS : manualRestMs
+      nextResetUsesDefault = !nextResetUsesDefault
       remainingMs = workMs
       endAt = 0
       this.setData({
@@ -131,9 +143,14 @@ Component({
     /** 运行中只记录；当前阶段空闲（未运行、未结束）时立即生效 */
     setDuration(key: string, ms: number) {
       const value = Math.max(MIN_DURATION_MS, Number(ms) || 0)
-      if (key === 'work') workMs = value
-      else if (key === 'rest') restMs = value
-      else return
+      if (key === 'work') {
+        manualWorkMs = value
+        workMs = value
+      } else if (key === 'rest') {
+        manualRestMs = value
+        restMs = value
+      } else return
+      nextResetUsesDefault = false
 
       const isCurrent =
         (key === 'work' && this.data.phase === 'work') ||
@@ -141,6 +158,27 @@ Component({
       if (isCurrent && !this.data.running && !this.data.finished) {
         remainingMs = value
         this.setData({ display: this._fmt(value) })
+      }
+      this._emitState()
+    },
+    /** 「重置设置」：工作 / 休息时长回到默认，当前未开始的计时同步刷新 */
+    resetDefaults() {
+      manualWorkMs = DEFAULT_WORK_MS
+      manualRestMs = DEFAULT_REST_MS
+      workMs = DEFAULT_WORK_MS
+      restMs = DEFAULT_REST_MS
+      nextResetUsesDefault = false
+      if (!started) {
+        this._stopTick()
+        remainingMs = workMs
+        endAt = 0
+        this.setData({
+          phase: 'work',
+          running: false,
+          finished: false,
+          completed: 0,
+          display: this._fmt(remainingMs),
+        })
       }
       this._emitState()
     },
@@ -251,7 +289,7 @@ Component({
         actions: buildActions(),
         editable: !started,
         editKey: this.data.phase,
-        editValueMs: this._durationOf(this.data.phase),
+        editValueMs: remainingMs,
         phase: this.data.phase,
         nextText: this._nextText(),
       })

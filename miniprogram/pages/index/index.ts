@@ -1,6 +1,6 @@
 // index.ts
 // 大屏计时器页面：只负责布局、公共样式与模式编排；计时逻辑在各自组件内。
-import { formatDurationLabel, formatLapTime, formatClockLap } from '../../utils/time'
+import { formatDurationLabel, formatLapTime, formatClockLap, pad2 } from '../../utils/time'
 
 type Mode = 'clock' | 'stopwatch' | 'countdown' | 'pomodoro'
 type StyleKey = 'white' | 'green' | 'amber' | 'cyan'
@@ -112,13 +112,52 @@ const emptyEditDigits = (): EditDigits => ({
 
 const NO_CAPABILITIES: Capabilities = { toggle: false, reset: false }
 
-const END_ALERT_ORDER: EndAlert[] = ['vibrate', 'sound', 'both', 'none']
+// 循环顺序从默认的「振动+提示音」开始，避免第一次点击就切成「无」
+const END_ALERT_ORDER: EndAlert[] = ['both', 'vibrate', 'sound', 'none']
 const END_ALERT_LABELS: Record<EndAlert, string> = {
   vibrate: '振动',
   sound: '提示音',
   both: '振动+提示音',
   none: '无',
 }
+
+// 全局设置默认值：首次进入、以及「重置设置」时使用
+const DEFAULT_THEME = 'dark' as 'dark' | 'light'
+const DEFAULT_STYLE: StyleKey = 'white'
+const DEFAULT_FONT_SIZE: FontSizeKey = 'm'
+const DEFAULT_FONT_FAMILY: FontFamilyKey = 'seven'
+const DEFAULT_GRADIENT = true
+const DEFAULT_SHOW_CENTIS = false
+const DEFAULT_SHOW_SUBTIME = true
+const DEFAULT_CLOCK_24H = true
+const DEFAULT_CLOCK_SECONDS = true
+const DEFAULT_ACTION_SIDE = 'right' as 'left' | 'right'
+const DEFAULT_LAP_ENABLED = false
+const DEFAULT_END_ALERT: EndAlert = 'both'
+
+// 各设置对应的本地存储键；「重置设置」时统一清除，下次启动即回到默认
+const SETTINGS_STORAGE_KEYS = [
+  'timer.theme',
+  'timer.style',
+  'timer.fontSize',
+  'timer.fontFamily',
+  'timer.gradient',
+  'timer.showCentis',
+  'timer.showSubTime',
+  'timer.clock24h',
+  'timer.clockShowSeconds',
+  'timer.lapEnabled',
+  'timer.endAlert',
+  'timer.actionSide',
+]
+// 各模式时长 / 闹钟等由组件回填的设置键
+const TIMER_STORAGE_KEYS = [
+  'timer.cdDurationMs',
+  'timer.workDurationMs',
+  'timer.restDurationMs',
+  'timer.swLimitMs',
+  'timer.alarm',
+]
 
 // 单页实例的瞬时状态（不进 data，避免无谓渲染）
 let activeMode: Mode = 'clock'
@@ -130,14 +169,18 @@ let seededAlarm = false
 let alertInterval: ReturnType<typeof setInterval> | undefined
 let alertStopTimer: ReturnType<typeof setTimeout> | undefined
 let alertStep = 0
+// 「结束提醒」切换后延后一拍试听，避免被设置栏父级的 catchtap 立即停掉
+let previewTimer: ReturnType<typeof setTimeout> | undefined
+// 键盘高度监听（用于弹层抬高，避免横屏键盘遮住「确定」）
+let keyboardHandler: ((res: any) => void) | undefined
 
 Component({
   data: {
     modes: MODES,
     mode: 'clock' as Mode,
-    theme: 'dark' as 'dark' | 'light',
-    style: 'white' as StyleKey,
-    styleLabel: '白色',
+    theme: DEFAULT_THEME,
+    style: DEFAULT_STYLE,
+    styleLabel: STYLE_LABELS[DEFAULT_STYLE],
 
     // 由激活组件上报
     subTime: '',
@@ -152,17 +195,17 @@ Component({
     actions: [] as ModeAction[],
 
     // 全局设置：主时间字号 / 是否显示百分秒
-    fontSize: 'm' as FontSizeKey,
-    fontSizeLabel: FONT_SIZE_LABELS.m,
-    fontFamily: 'seven' as FontFamilyKey,
-    fontFamilyLabel: FONT_FAMILY_LABELS.seven,
-    gradient: false,
-    showCentis: true,
-    showSubTime: true,
+    fontSize: DEFAULT_FONT_SIZE,
+    fontSizeLabel: FONT_SIZE_LABELS[DEFAULT_FONT_SIZE],
+    fontFamily: DEFAULT_FONT_FAMILY,
+    fontFamilyLabel: FONT_FAMILY_LABELS[DEFAULT_FONT_FAMILY],
+    gradient: DEFAULT_GRADIENT,
+    showCentis: DEFAULT_SHOW_CENTIS,
+    showSubTime: DEFAULT_SHOW_SUBTIME,
 
     // 时钟专属：24 小时制 / 是否显示秒
-    clock24h: true,
-    clockShowSeconds: true,
+    clock24h: DEFAULT_CLOCK_24H,
+    clockShowSeconds: DEFAULT_CLOCK_SECONDS,
 
     // 倒计时 / 番茄未开始时的「主时间滑动调时」
     editable: false,
@@ -171,17 +214,17 @@ Component({
     editTouched: false,
 
     // 操作组贴边方向（全局设置，默认右侧）
-    actionSide: 'right' as 'left' | 'right',
+    actionSide: DEFAULT_ACTION_SIDE,
 
-    // 设置栏：第二行（原第一行的通用设置）默认收起，点「更多」展开
+    // 设置栏：第二行（通用设置）默认收起，点「更多」展开
     moreOpen: false,
 
     // 时钟 / 正计时：是否显示「计次」功能按钮
-    lapEnabled: false,
+    lapEnabled: DEFAULT_LAP_ENABLED,
 
     // 结束提醒（全局设置）
-    endAlert: 'both' as EndAlert,
-    endAlertLabel: END_ALERT_LABELS.both,
+    endAlert: DEFAULT_END_ALERT,
+    endAlertLabel: END_ALERT_LABELS[DEFAULT_END_ALERT],
 
     // 时钟闹钟（由组件上报，页面负责渲染与持久化）
     alarmOn: false,
@@ -210,6 +253,9 @@ Component({
 
     // 弹出框输入框当前聚焦项，用于高亮「可输入」状态
     focusField: '',
+
+    // 键盘高度：>0 时弹层上移并紧凑排版，保证横屏下「确定」不被键盘挡住
+    keyboardHeight: 0,
   },
 
   lifetimes: {
@@ -221,6 +267,14 @@ Component({
       activeMode = this.data.mode
       this._stopAlert()
       this._loadPersisted()
+      // 横屏键盘较高：弹层按键盘高度上移，避免输入时遮住「确定」
+      const handler = (res: any) => {
+        this.setData({ keyboardHeight: res.height || 0 })
+      }
+      keyboardHandler = handler
+      if (typeof wx.onKeyboardHeightChange === 'function') {
+        wx.onKeyboardHeightChange(handler)
+      }
     },
     ready() {
       const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
@@ -228,6 +282,14 @@ Component({
     },
     detached() {
       this._stopAlert()
+      if (previewTimer) {
+        clearTimeout(previewTimer)
+        previewTimer = undefined
+      }
+      if (keyboardHandler && typeof wx.offKeyboardHeightChange === 'function') {
+        wx.offKeyboardHeightChange(keyboardHandler)
+      }
+      keyboardHandler = undefined
       wx.setKeepScreenOn({ keepScreenOn: false })
     },
   },
@@ -299,7 +361,12 @@ Component({
           const comp = this.selectComponent(MODE_COMPONENTS.clock)
           if (comp) {
             seededAlarm = true
-            comp.setAlarm(stored.hour, stored.minute)
+            // 带上设置时刻：重启后在「错过不久」的窗口内仍会补响
+            const setAtMs = typeof stored.setAtMs === 'number' ? stored.setAtMs : undefined
+            comp.setAlarm(stored.hour, stored.minute, setAtMs)
+            // setAlarm 会同步再发一次 statechange（已带最新闹钟状态），
+            // 这里直接返回，避免随后用旧 detail 把闹钟状态覆盖掉
+            return
           }
         } else {
           seededAlarm = true
@@ -436,20 +503,34 @@ Component({
         durM: Math.floor((totalSec % 3600) / 60),
         durS: totalSec % 60,
         focusField: '',
+        keyboardHeight: 0,
       })
     },
     // ===== 闹钟 =====
     onAlarmTap() {
+      this._stopAlert()
       const stored = wx.getStorageSync('timer.alarm')
       if (stored && stored.on) {
-        this.setData({ alarmPanelVisible: true, alarmH: stored.hour, alarmM: stored.minute, focusField: '' })
+        this.setData({
+          alarmPanelVisible: true,
+          alarmH: stored.hour,
+          alarmM: stored.minute,
+          focusField: '',
+          keyboardHeight: 0,
+        })
       } else {
         const now = new Date()
-        this.setData({ alarmPanelVisible: true, alarmH: now.getHours(), alarmM: now.getMinutes(), focusField: '' })
+        this.setData({
+          alarmPanelVisible: true,
+          alarmH: now.getHours(),
+          alarmM: now.getMinutes(),
+          focusField: '',
+          keyboardHeight: 0,
+        })
       }
     },
     closeAlarmPanel() {
-      this.setData({ alarmPanelVisible: false })
+      this.setData({ alarmPanelVisible: false, focusField: '', keyboardHeight: 0 })
     },
     onAlarmHInput(e: any) {
       this.setData({ alarmH: clamp(Number(e.detail.value) || 0, 0, 23) })
@@ -458,19 +539,39 @@ Component({
       this.setData({ alarmM: clamp(Number(e.detail.value) || 0, 0, 59) })
     },
     applyAlarm() {
+      const hour = clamp(Number(this.data.alarmH) || 0, 0, 23)
+      const minute = clamp(Number(this.data.alarmM) || 0, 0, 59)
+      // 先落盘再下发：若正好设到当前分钟，组件可能立刻触发提醒并回写「关闭」
+      // setAtMs：设置时刻，用于重启后还原闹钟原本的目标时间
+      wx.setStorageSync('timer.alarm', { on: true, hour, minute, setAtMs: Date.now() })
+      seededAlarm = true
       const comp = this.selectComponent(MODE_COMPONENTS.clock)
-      if (comp) comp.setAlarm(this.data.alarmH, this.data.alarmM)
-      wx.setStorageSync('timer.alarm', { on: true, hour: this.data.alarmH, minute: this.data.alarmM })
-      this.setData({ alarmPanelVisible: false })
+      if (comp) comp.setAlarm(hour, minute)
+      this.setData({
+        alarmPanelVisible: false,
+        alarmH: hour,
+        alarmM: minute,
+        keyboardHeight: 0,
+        focusField: '',
+      })
+      wx.showToast({ title: `闹钟已设置 ${pad2(hour)}:${pad2(minute)}`, icon: 'none' })
     },
     clearAlarm() {
+      seededAlarm = true
       const comp = this.selectComponent(MODE_COMPONENTS.clock)
       if (comp) comp.clearAlarm()
       wx.setStorageSync('timer.alarm', { on: false })
-      this.setData({ alarmPanelVisible: false, alarmOn: false, alarmText: '' })
+      this.setData({
+        alarmPanelVisible: false,
+        alarmOn: false,
+        alarmText: '',
+        keyboardHeight: 0,
+        focusField: '',
+      })
     },
     onAlarmFire() {
       this._playAlert()
+      wx.showToast({ title: '闹钟时间到', icon: 'none', duration: 3000 })
       wx.setStorageSync('timer.alarm', { on: false })
       this.setData({ alarmOn: false, alarmText: '' })
     },
@@ -495,7 +596,7 @@ Component({
 
     closeDurationPanel() {
       pendingAction = null
-      this.setData({ durationTarget: '' })
+      this.setData({ durationTarget: '', focusField: '', keyboardHeight: 0 })
     },
     onDurHInput(e: any) {
       this.setData({ durH: Number(e.detail.value) || 0 })
@@ -523,7 +624,7 @@ Component({
       wx.setStorageSync(action.storageKey, ms)
 
       pendingAction = null
-      this.setData({ durationTarget: '' })
+      this.setData({ durationTarget: '', focusField: '', keyboardHeight: 0 })
     },
 
     // ===== 主时间滑动调时（倒计时 / 番茄，仅未开始） =====
@@ -649,6 +750,83 @@ Component({
       const endAlert = END_ALERT_ORDER[(current + 1) % END_ALERT_ORDER.length]
       this.setData({ endAlert, endAlertLabel: END_ALERT_LABELS[endAlert] })
       wx.setStorageSync('timer.endAlert', endAlert)
+      // 立即试听新设置；延后一拍，避免被设置栏父级的 catchtap 当场停掉
+      this._schedulePreview(endAlert)
+    },
+
+    // ===== 重置设置：所有全局设置与各模式时长 / 闹钟恢复默认 =====
+    onResetSettings() {
+      this._stopAlert()
+      pendingAction = null
+      editDrag = null
+      seededAlarm = false
+      this.setData({
+        theme: DEFAULT_THEME,
+        style: DEFAULT_STYLE,
+        styleLabel: STYLE_LABELS[DEFAULT_STYLE],
+        fontSize: DEFAULT_FONT_SIZE,
+        fontSizeLabel: FONT_SIZE_LABELS[DEFAULT_FONT_SIZE],
+        fontFamily: DEFAULT_FONT_FAMILY,
+        fontFamilyLabel: FONT_FAMILY_LABELS[DEFAULT_FONT_FAMILY],
+        gradient: DEFAULT_GRADIENT,
+        showCentis: DEFAULT_SHOW_CENTIS,
+        showSubTime: DEFAULT_SHOW_SUBTIME,
+        clock24h: DEFAULT_CLOCK_24H,
+        clockShowSeconds: DEFAULT_CLOCK_SECONDS,
+        actionSide: DEFAULT_ACTION_SIDE,
+        lapEnabled: DEFAULT_LAP_ENABLED,
+        endAlert: DEFAULT_END_ALERT,
+        endAlertLabel: END_ALERT_LABELS[DEFAULT_END_ALERT],
+        alarmOn: false,
+        alarmText: '',
+        alarmPanelVisible: false,
+        durationTarget: '',
+        focusField: '',
+        keyboardHeight: 0,
+      })
+      SETTINGS_STORAGE_KEYS.forEach(key => wx.removeStorageSync(key))
+      TIMER_STORAGE_KEYS.forEach(key => wx.removeStorageSync(key))
+      // 组件内的时长 / 闹钟一并回到默认，并刷新界面
+      ;(Object.keys(MODE_COMPONENTS) as Mode[]).forEach(mode => {
+        const comp = this.selectComponent(MODE_COMPONENTS[mode])
+        if (comp && typeof comp.resetDefaults === 'function') comp.resetDefaults()
+      })
+      this._applyMenuStyle()
+      wx.showToast({ title: '已恢复默认设置', icon: 'none' })
+    },
+
+    _schedulePreview(kind: EndAlert) {
+      if (previewTimer) {
+        clearTimeout(previewTimer)
+        previewTimer = undefined
+      }
+      previewTimer = setTimeout(() => {
+        previewTimer = undefined
+        this._playPreview(kind)
+      }, 0)
+    },
+    /** 试听一轮：按设置响 3 下（振动 / 提示音 / 两者） */
+    _playPreview(kind: EndAlert) {
+      this._stopAlert()
+      if (kind === 'none') return
+      const sound = kind === 'sound' || kind === 'both'
+      const vibrate = kind === 'vibrate' || kind === 'both'
+      let count = 0
+      const tick = () => {
+        if (sound) this._playSound()
+        if (vibrate) wx.vibrateShort({ type: 'medium' })
+        count += 1
+        if (count >= 3) {
+          // 停止轮询，但让第 3 声播完再收尾（立即 stop 会把它掐断）
+          if (alertInterval) {
+            clearInterval(alertInterval)
+            alertInterval = undefined
+          }
+          alertStopTimer = setTimeout(() => this._stopAlert(), 400)
+        }
+      }
+      tick()
+      alertInterval = setInterval(tick, 450)
     },
 
     // ===== 结束 / 闹钟提醒：按设置执行 =====

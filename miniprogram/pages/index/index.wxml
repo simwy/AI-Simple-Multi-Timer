@@ -111,7 +111,8 @@
         wx:if="{{!focusMode && lapEnabled && (mode === 'clock' || mode === 'stopwatch')}}"
         catchtap="onLap">计次</view>
 
-  <!-- 6 底部工具栏：第一行模式专属 + 更多，第二行通用设置（默认收起） -->
+  <!-- 6 底部设置栏：第一行模式专属 + 更多，第二行通用设置（默认收起）
+       第二行始终占位，仅切换显隐，保证展开 / 收起时第一行位置完全不动 -->
   <view class="toolbar" wx:if="{{!focusMode}}" catchtap="onUIAreaTap">
     <view class="toolbar-row toolbar-row--mode">
       <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onAlarmTap">
@@ -140,7 +141,7 @@
         <text class="toolbar-btn__value">{{moreOpen ? '收起' : '展开'}}</text>
       </view>
     </view>
-    <view class="toolbar-row toolbar-row--common" wx:if="{{moreOpen}}">
+    <view class="toolbar-row toolbar-row--common {{moreOpen ? 'is-open' : 'is-closed'}}">
       <view class="toolbar-btn" bindtap="onToggleTheme">
         <text class="toolbar-btn__desc">背景颜色</text>
         <text class="toolbar-btn__value">{{theme === 'dark' ? '深色' : '浅色'}}</text>
@@ -177,23 +178,30 @@
         <text class="toolbar-btn__desc">按钮位置</text>
         <text class="toolbar-btn__value">{{actionSide === 'left' ? '反' : '正'}}</text>
       </view>
+      <view class="toolbar-btn toolbar-btn--reset" bindtap="onResetSettings">
+        <text class="toolbar-btn__desc">重置设置</text>
+        <text class="toolbar-btn__value">恢复默认</text>
+      </view>
     </view>
   </view>
 
   <!-- 7 时长设置弹层（倒计时 / 工作 / 休息共用） -->
   <view class="mask" wx:if="{{durationTarget !== ''}}" catchtap="closeDurationPanel"></view>
-  <view class="panel" wx:if="{{durationTarget !== ''}}" catchtap="onUIAreaTap">
+  <view class="panel {{keyboardHeight > 0 ? 'is-raised' : ''}}" wx:if="{{durationTarget !== ''}}" catchtap="onUIAreaTap">
     <view class="panel-title">{{durationTitle}}</view>
     <view class="panel-label">时长（时 : 分 : 秒）</view>
     <view class="panel-row">
       <input class="panel-input {{focusField === 'durH' ? 'is-focused' : ''}}" type="number" value="{{durH}}"
-             data-field="durH" bindinput="onDurHInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
+             adjust-position="{{false}}" data-field="durH"
+             bindinput="onDurHInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
       <text class="panel-colon">:</text>
       <input class="panel-input {{focusField === 'durM' ? 'is-focused' : ''}}" type="number" value="{{durM}}"
-             data-field="durM" bindinput="onDurMInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
+             adjust-position="{{false}}" data-field="durM"
+             bindinput="onDurMInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
       <text class="panel-colon">:</text>
       <input class="panel-input {{focusField === 'durS' ? 'is-focused' : ''}}" type="number" value="{{durS}}"
-             data-field="durS" bindinput="onDurSInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
+             adjust-position="{{false}}" data-field="durS"
+             bindinput="onDurSInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
     </view>
     <view class="panel-actions">
       <button class="panel-btn secondary" bindtap="closeDurationPanel">关闭</button>
@@ -203,15 +211,17 @@
 
   <!-- 8 闹钟设置弹层（时 : 分） -->
   <view class="mask" wx:if="{{alarmPanelVisible}}" catchtap="closeAlarmPanel"></view>
-  <view class="panel" wx:if="{{alarmPanelVisible}}" catchtap="onUIAreaTap">
+  <view class="panel {{keyboardHeight > 0 ? 'is-raised' : ''}}" wx:if="{{alarmPanelVisible}}" catchtap="onUIAreaTap">
     <view class="panel-title">闹钟</view>
     <view class="panel-label">时间（时 : 分）</view>
     <view class="panel-row">
       <input class="panel-input {{focusField === 'alarmH' ? 'is-focused' : ''}}" type="number" value="{{alarmH}}"
-             data-field="alarmH" bindinput="onAlarmHInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
+             adjust-position="{{false}}" data-field="alarmH"
+             bindinput="onAlarmHInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
       <text class="panel-colon">:</text>
       <input class="panel-input {{focusField === 'alarmM' ? 'is-focused' : ''}}" type="number" value="{{alarmM}}"
-             data-field="alarmM" bindinput="onAlarmMInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
+             adjust-position="{{false}}" data-field="alarmM"
+             bindinput="onAlarmMInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
     </view>
     <view class="panel-actions">
       <button class="panel-btn secondary" bindtap="closeAlarmPanel">取消</button>

@@ -7,8 +7,12 @@ const DEFAULT_DURATION_MS = 60 * 1000
 
 let isActive = false
 let started = false
+// durationMs：用户手动设置的时长（落盘）；currentDurationMs：当前生效的时长。
+// 重置按钮第一次回手动值、第二次回默认值，交替切换。
 let durationMs = DEFAULT_DURATION_MS
+let currentDurationMs = DEFAULT_DURATION_MS
 let remainingMs = DEFAULT_DURATION_MS
+let nextResetUsesDefault = false
 let endAt = 0
 let subTime = ''
 let tickTimer: ReturnType<typeof setInterval> | undefined
@@ -19,7 +23,7 @@ const buildActions = () => [
     label: '倒计时长',
     kind: 'duration',
     title: '倒计时时长',
-    valueMs: durationMs,
+    valueMs: currentDurationMs,
     minMs: 0,
     storageKey: 'timer.cdDurationMs',
   },
@@ -48,7 +52,9 @@ Component({
       isActive = false
       started = false
       durationMs = DEFAULT_DURATION_MS
+      currentDurationMs = DEFAULT_DURATION_MS
       remainingMs = durationMs
+      nextResetUsesDefault = false
       endAt = 0
       subTime = ''
       this.setData({
@@ -95,10 +101,13 @@ Component({
     pause() {
       if (this.data.running) this._pause()
     },
+    /** 第一次重置回用户手动设置的时长，第二次回默认时长，如此交替 */
     reset() {
       this._stopTick()
       started = false
-      remainingMs = durationMs
+      currentDurationMs = nextResetUsesDefault ? DEFAULT_DURATION_MS : durationMs
+      nextResetUsesDefault = !nextResetUsesDefault
+      remainingMs = currentDurationMs
       endAt = 0
       this.setData({
         display: this._fmt(remainingMs),
@@ -111,9 +120,28 @@ Component({
     setDuration(key: string, ms: number) {
       if (key !== 'countdown') return
       durationMs = Math.max(0, Number(ms) || 0)
+      currentDurationMs = durationMs
+      nextResetUsesDefault = false
       if (!this.data.running) {
         remainingMs = durationMs
         this.setData({ display: this._fmt(durationMs), finished: false })
+      }
+      this._emitState()
+    },
+    /** 「重置设置」：时长回到默认，当前未开始的计时同步刷新 */
+    resetDefaults() {
+      durationMs = DEFAULT_DURATION_MS
+      currentDurationMs = DEFAULT_DURATION_MS
+      nextResetUsesDefault = false
+      if (!started) {
+        this._stopTick()
+        remainingMs = DEFAULT_DURATION_MS
+        endAt = 0
+        this.setData({
+          display: this._fmt(remainingMs),
+          running: false,
+          finished: false,
+        })
       }
       this._emitState()
     },
@@ -121,7 +149,7 @@ Component({
     _start() {
       started = true
       if (this.data.finished || remainingMs <= 0) {
-        remainingMs = durationMs
+        remainingMs = currentDurationMs
         this.setData({ display: this._fmt(remainingMs), finished: false })
       }
       endAt = Date.now() + remainingMs
@@ -200,7 +228,7 @@ Component({
         actions: buildActions(),
         editable: !started,
         editKey: 'countdown',
-        editValueMs: durationMs,
+        editValueMs: remainingMs,
       })
     },
   },
