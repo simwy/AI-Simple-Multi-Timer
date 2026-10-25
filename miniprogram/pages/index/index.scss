@@ -170,10 +170,11 @@ page {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 12px;
+  padding: 2px 10px;
   border-radius: 999px;
-  font-size: 18px;
-  line-height: 26px;
+  /* 与其他模式的子时间视觉等大：中文字形比数字更“满”，用 16px 抵消观感差异 */
+  font-size: 16px;
+  line-height: 24px;
   letter-spacing: 1px;
   border: 1px solid transparent;
 }
@@ -355,9 +356,10 @@ page {
   text-shadow: 0 0 20px var(--digit-glow);
   white-space: nowrap;
 }
+/* 每一位数字单独占一格，点按 / 上下滑动互不干扰 */
 .edit-seg {
   display: inline-block;
-  min-width: 1.2em;
+  min-width: 0.62em;
   text-align: center;
 }
 .edit-colon,
@@ -521,7 +523,8 @@ page {
 /* ===== 5b 计次按钮（操作组对侧） ===== */
 .lap-btn {
   position: absolute;
-  bottom: calc(84px + var(--stage-lift));
+  /* 垂直居中与主时间同一水平线（主时间整组已上移 --stage-lift） */
+  top: 50%;
   z-index: 2;
   width: 52px;
   height: 52px;
@@ -532,12 +535,17 @@ page {
   font-size: 14px;
   color: var(--fg);
   background: rgba(128, 128, 128, 0.32);
+  transform: translateY(calc(-50% - var(--stage-lift)));
 }
 .lap-btn.is-left {
   left: 32px;
 }
 .lap-btn.is-right {
   right: 32px;
+}
+.lap-btn.is-disabled {
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 /* ===== 6 底部工具栏 ===== */

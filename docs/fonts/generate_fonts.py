@@ -109,9 +109,13 @@ def build_seven(path):
     metrics = {'.notdef': (M['adv'], 0)}
 
     for ch, name in zip('0123456789', NAMES):
-        glyphs[name] = poly_glyph([SEGMENTS[s]() for s in DIGITS[ch]])
+        glyph = poly_glyph([SEGMENTS[s]() for s in DIGITS[ch]])
+        glyph.recalcBounds(glyphs)
+        glyphs[name] = glyph
         order.append(name)
-        metrics[name] = (M['adv'], round((M['adv'] - M['ink_w']) / 2))
+        # lsb 必须等于字形 xMin。七段字体的 1/3/7 墨迹不在居中位置，
+        # 若统一写成居中偏移，部分渲染器会把整个字形左移（1 会靠左）。
+        metrics[name] = (M['adv'], glyph.xMin)
 
     r = round(0.09 * M['ink_w'])
     colon = [dot_units(M['colon_adv'] / 2, M['y0'] + 0.34 * M['ink_h'], r),

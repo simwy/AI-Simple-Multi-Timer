@@ -1,12 +1,25 @@
 // index.ts
 // 大屏计时器页面：只负责布局、公共样式与模式编排；计时逻辑在各自组件内。
-import { formatDurationLabel, formatLapTime, formatClockLap, pad2, splitHMS } from '../../utils/time'
+import { formatDurationLabel, formatLapTime, formatClockLap } from '../../utils/time'
 
 type Mode = 'clock' | 'stopwatch' | 'countdown' | 'pomodoro'
 type StyleKey = 'white' | 'green' | 'amber' | 'cyan'
 type FontSizeKey = 's' | 'm' | 'l' | 'xl'
 type FontFamilyKey = 'seven' | 'rounded' | 'classic'
-type EditUnit = 'h' | 'm' | 's'
+
+// 可滑动调时的最小单位：时/分/秒各拆成十位与个位，另有百分秒的十位与个位
+type EditDigit = 'h10' | 'h1' | 'm10' | 'm1' | 's10' | 's1' | 'cs10' | 'cs1'
+
+interface EditDigits {
+  h10: string
+  h1: string
+  m10: string
+  m1: string
+  s10: string
+  s1: string
+  cs10: string
+  cs1: string
+}
 
 type EndAlert = 'vibrate' | 'sound' | 'both' | 'none'
 
@@ -74,6 +87,29 @@ const FONT_FAMILY_LABELS: Record<FontFamilyKey, string> = {
 const EDIT_STEP_PX = 24
 const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v))
 
+// 每一位数字的滑动上限：分/秒的十位最多到 5（59），时与百分秒十位到 9
+const EDIT_DIGIT_MAX: Record<EditDigit, number> = {
+  h10: 9,
+  h1: 9,
+  m10: 5,
+  m1: 9,
+  s10: 5,
+  s1: 9,
+  cs10: 9,
+  cs1: 9,
+}
+
+const emptyEditDigits = (): EditDigits => ({
+  h10: '0',
+  h1: '0',
+  m10: '0',
+  m1: '0',
+  s10: '0',
+  s1: '0',
+  cs10: '0',
+  cs1: '0',
+})
+
 const NO_CAPABILITIES: Capabilities = { toggle: false, reset: false }
 
 const END_ALERT_ORDER: EndAlert[] = ['vibrate', 'sound', 'both', 'none']
@@ -88,7 +124,7 @@ const END_ALERT_LABELS: Record<EndAlert, string> = {
 let activeMode: Mode = 'clock'
 let seeded: Record<string, boolean> = {}
 let pendingAction: ModeAction | null = null
-let editDrag: { unit: EditUnit; startY: number; steps: number } | null = null
+let editDrag: { unit: EditDigit; startY: number; steps: number } | null = null
 let beepAudio: WechatMiniprogram.InnerAudioContext | null = null
 let seededAlarm = false
 let alertInterval: ReturnType<typeof setInterval> | undefined
@@ -131,13 +167,17 @@ Component({
     // 倒计时 / 番茄未开始时的「主时间滑动调时」
     editable: false,
     editKey: '',
-    editH: '00',
-    editM: '00',
-    editS: '00',
+    editDigits: emptyEditDigits(),
     editTouched: false,
 
     // 操作组贴边方向（全局设置，默认右侧）
     actionSide: 'right' as 'left' | 'right',
+
+    // 设置栏：第二行（原第一行的通用设置）默认收起，点「更多」展开
+    moreOpen: false,
+
+    // 时钟 / 正计时：是否显示「计次」功能按钮
+    lapEnabled: false,
 
     // 结束提醒（全局设置）
     endAlert: 'both' as EndAlert,
@@ -227,6 +267,7 @@ Component({
         durationTarget: '',
         editable: false,
         editKey: '',
+        editDigits: emptyEditDigits(),
         editTouched: false,
         alarmOn: false,
         alarmText: '',
@@ -303,8 +344,9 @@ Component({
           cumulativeText: isClock ? formatClockLap(l.cumulativeMs) : formatLapTime(l.cumulativeMs),
           splitText: isClock ? '' : formatLapTime(l.splitMs),
         }))
-        updates.laps = formatted
-        updates.lapPreview = formatted.slice(-2).map(f => ({
+        // 计次倒序：列表与预览都从最新一条开始，往下是更早的
+        updates.laps = formatted.slice().reverse()
+        updates.lapPreview = updates.laps.slice(0, 2).map((f: any) => ({
           index: f.index,
           cumulativeText: f.cumulativeText,
         }))
@@ -319,12 +361,9 @@ Component({
         updates.editable = true
         updates.editKey = editKey
         if (entering) updates.editTouched = false
-        // 拖动过程中组件会回传新值，此时不要覆盖页面正在编辑的分段
+        // 拖动过程中组件会回传新值，此时不要覆盖页面正在编辑的数字
         if (entering || !editDrag) {
-          const t = splitHMS(Number(detail.editValueMs) || 0)
-          updates.editH = pad2(t.h)
-          updates.editM = pad2(t.m)
-          updates.editS = pad2(t.s)
+          updates.editDigits = this._digitsFromMs(Number(detail.editValueMs) || 0)
         }
       } else {
         updates.editable = false
@@ -434,6 +473,7 @@ Component({
 
     // ===== 正计时计次 =====
     onLap() {
+      this._stopAlertIfActive()
       const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
       if (comp) comp.lap()
     },
@@ -442,6 +482,7 @@ Component({
       if (comp) comp.clearLaps()
     },
     openLapPanel() {
+      this._stopAlertIfActive()
       this.setData({ lapPanelVisible: true })
     },
     closeLapPanel() {
@@ -477,9 +518,9 @@ Component({
 
     // ===== 主时间滑动调时（倒计时 / 番茄，仅未开始） =====
     onEditTouchStart(e: any) {
-      const unit = e.currentTarget.dataset.unit as EditUnit
+      const unit = e.currentTarget.dataset.unit as EditDigit
       const touch = e.touches && e.touches[0]
-      if (!unit || !touch) return
+      if (!unit || !(unit in EDIT_DIGIT_MAX) || !touch) return
       editDrag = { unit, startY: touch.clientY, steps: 0 }
     },
     onEditTouchMove(e: any) {
@@ -503,29 +544,45 @@ Component({
       editDrag = null
     },
     _currentEditMs(): number {
-      const h = Number(this.data.editH) || 0
-      const m = Number(this.data.editM) || 0
-      const s = Number(this.data.editS) || 0
-      return ((h * 60 + m) * 60 + s) * 1000
+      return this._msFromDigits(this.data.editDigits)
     },
-    _applyEditDelta(unit: EditUnit, delta: number) {
+    /** 毫秒 → 每一位数字（含百分秒），供主时间分段显示 */
+    _digitsFromMs(ms: number): EditDigits {
+      const totalCs = Math.max(0, Math.floor(ms / 10))
+      const cs = totalCs % 100
+      const totalSec = Math.floor(totalCs / 100)
+      // 分段编辑上限 99 小时，超出时按上限显示，避免十位出现两位字符
+      const h = Math.min(99, Math.floor(totalSec / 3600))
+      const m = Math.floor((totalSec % 3600) / 60)
+      const s = totalSec % 60
+      return {
+        h10: String(Math.floor(h / 10)),
+        h1: String(h % 10),
+        m10: String(Math.floor(m / 10)),
+        m1: String(m % 10),
+        s10: String(Math.floor(s / 10)),
+        s1: String(s % 10),
+        cs10: String(Math.floor(cs / 10)),
+        cs1: String(cs % 10),
+      }
+    },
+    /** 每一位数字 → 毫秒 */
+    _msFromDigits(d: EditDigits): number {
+      const h = Number(d.h10) * 10 + Number(d.h1)
+      const m = Number(d.m10) * 10 + Number(d.m1)
+      const s = Number(d.s10) * 10 + Number(d.s1)
+      const cs = Number(d.cs10) * 10 + Number(d.cs1)
+      return ((h * 60 + m) * 60 + s) * 1000 + cs * 10
+    },
+    _applyEditDelta(unit: EditDigit, delta: number) {
       const action = (this.data.actions as ModeAction[]).find(a => a.key === this.data.editKey)
       if (!action) return
 
-      let h = Number(this.data.editH) || 0
-      let m = Number(this.data.editM) || 0
-      let s = Number(this.data.editS) || 0
-      if (unit === 'h') h = clamp(h + delta, 0, 99)
-      else if (unit === 'm') m = clamp(m + delta, 0, 59)
-      else s = clamp(s + delta, 0, 59)
+      const digits = { ...this.data.editDigits }
+      digits[unit] = String(clamp(Number(digits[unit]) + delta, 0, EDIT_DIGIT_MAX[unit]))
 
-      const ms = Math.max(action.minMs, ((h * 60 + m) * 60 + s) * 1000)
-      const t = splitHMS(ms)
-      this.setData({
-        editH: pad2(t.h),
-        editM: pad2(t.m),
-        editS: pad2(t.s),
-      })
+      const ms = Math.max(action.minMs, this._msFromDigits(digits))
+      this.setData({ editDigits: this._digitsFromMs(ms) })
 
       const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
       if (comp) comp.setDuration(action.key, ms)
@@ -558,6 +615,14 @@ Component({
       const showSubTime = !this.data.showSubTime
       this.setData({ showSubTime })
       wx.setStorageSync('timer.showSubTime', showSubTime)
+    },
+    onToggleMore() {
+      this.setData({ moreOpen: !this.data.moreOpen })
+    },
+    onToggleLapEnabled() {
+      const lapEnabled = !this.data.lapEnabled
+      this.setData({ lapEnabled })
+      wx.setStorageSync('timer.lapEnabled', lapEnabled)
     },
     onToggleClock24h() {
       const clock24h = !this.data.clock24h
@@ -646,6 +711,7 @@ Component({
 
     // ===== 左上角客服入口 =====
     openContactPanel() {
+      this._stopAlertIfActive()
       this.setData({ contactPanelVisible: true, contactQrVisible: true })
     },
     closeContactPanel() {
@@ -693,6 +759,7 @@ Component({
       const showSubTime = wx.getStorageSync('timer.showSubTime')
       const clock24h = wx.getStorageSync('timer.clock24h')
       const clockShowSeconds = wx.getStorageSync('timer.clockShowSeconds')
+      const lapEnabled = wx.getStorageSync('timer.lapEnabled')
       const updates: any = {}
       if (theme === 'light' || theme === 'dark') updates.theme = theme
       if (style === 'white' || style === 'green' || style === 'amber' || style === 'cyan') {
@@ -713,6 +780,7 @@ Component({
       if (typeof showSubTime === 'boolean') updates.showSubTime = showSubTime
       if (typeof clock24h === 'boolean') updates.clock24h = clock24h
       if (typeof clockShowSeconds === 'boolean') updates.clockShowSeconds = clockShowSeconds
+      if (typeof lapEnabled === 'boolean') updates.lapEnabled = lapEnabled
       const endAlert = wx.getStorageSync('timer.endAlert')
       if (endAlert === 'vibrate' || endAlert === 'sound' || endAlert === 'both' || endAlert === 'none') {
         updates.endAlert = endAlert

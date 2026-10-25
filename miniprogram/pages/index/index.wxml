@@ -29,20 +29,35 @@
 
     <!-- 主时间区：4 个组件常驻，非激活项 / 可编辑态隐藏 -->
     <view class="main-time style-{{style}} size-{{fontSize}} ff-{{fontFamily}} {{gradient ? 'is-gradient' : ''}} {{finished ? 'is-finished' : ''}}">
-      <!-- 倒计时 / 番茄未开始时：页面自绘分段，可上下滑动调时 -->
-      <view class="edit-time" wx:if="{{editable}}">
-        <view class="edit-seg" data-unit="h" bindtouchstart="onEditTouchStart"
+      <!-- 倒计时 / 番茄未开始时：页面自绘分段，每一位数字都可上下滑动 -->
+      <view class="edit-time" wx:if="{{editable}}" catchtap="onUIAreaTap">
+        <view class="edit-seg" data-unit="h10" bindtouchstart="onEditTouchStart"
               catchtouchmove="onEditTouchMove" bindtouchend="onEditTouchEnd"
-              bindtouchcancel="onEditTouchEnd">{{editH}}</view>
+              bindtouchcancel="onEditTouchEnd">{{editDigits.h10}}</view>
+        <view class="edit-seg" data-unit="h1" bindtouchstart="onEditTouchStart"
+              catchtouchmove="onEditTouchMove" bindtouchend="onEditTouchEnd"
+              bindtouchcancel="onEditTouchEnd">{{editDigits.h1}}</view>
         <text class="edit-colon">:</text>
-        <view class="edit-seg" data-unit="m" bindtouchstart="onEditTouchStart"
+        <view class="edit-seg" data-unit="m10" bindtouchstart="onEditTouchStart"
               catchtouchmove="onEditTouchMove" bindtouchend="onEditTouchEnd"
-              bindtouchcancel="onEditTouchEnd">{{editM}}</view>
+              bindtouchcancel="onEditTouchEnd">{{editDigits.m10}}</view>
+        <view class="edit-seg" data-unit="m1" bindtouchstart="onEditTouchStart"
+              catchtouchmove="onEditTouchMove" bindtouchend="onEditTouchEnd"
+              bindtouchcancel="onEditTouchEnd">{{editDigits.m1}}</view>
         <text class="edit-colon">:</text>
-        <view class="edit-seg" data-unit="s" bindtouchstart="onEditTouchStart"
+        <view class="edit-seg" data-unit="s10" bindtouchstart="onEditTouchStart"
               catchtouchmove="onEditTouchMove" bindtouchend="onEditTouchEnd"
-              bindtouchcancel="onEditTouchEnd">{{editS}}</view>
-        <text class="edit-frac" wx:if="{{showCentis}}">.00</text>
+              bindtouchcancel="onEditTouchEnd">{{editDigits.s10}}</view>
+        <view class="edit-seg" data-unit="s1" bindtouchstart="onEditTouchStart"
+              catchtouchmove="onEditTouchMove" bindtouchend="onEditTouchEnd"
+              bindtouchcancel="onEditTouchEnd">{{editDigits.s1}}</view>
+        <text class="edit-frac" wx:if="{{showCentis}}">.</text>
+        <view class="edit-seg edit-frac" wx:if="{{showCentis}}" data-unit="cs10"
+              bindtouchstart="onEditTouchStart" catchtouchmove="onEditTouchMove"
+              bindtouchend="onEditTouchEnd" bindtouchcancel="onEditTouchEnd">{{editDigits.cs10}}</view>
+        <view class="edit-seg edit-frac" wx:if="{{showCentis}}" data-unit="cs1"
+              bindtouchstart="onEditTouchStart" catchtouchmove="onEditTouchMove"
+              bindtouchend="onEditTouchEnd" bindtouchcancel="onEditTouchEnd">{{editDigits.cs1}}</view>
       </view>
       <view class="edit-hint {{editTouched ? 'is-faded' : ''}}" wx:if="{{editable}}">上下滑动调整</view>
 
@@ -50,7 +65,7 @@
       <view class="alarm-hint" wx:if="{{mode === 'clock' && alarmOn && !focusMode}}">闹钟 {{alarmText}}</view>
 
       <!-- 正计时 / 时钟计次预览：最多最近 2 行，超出显示 More -->
-      <view class="lap-preview" wx:if="{{(mode === 'stopwatch' || mode === 'clock') && lapPreview.length && !focusMode}}" catchtap="onUIAreaTap">
+      <view class="lap-preview" wx:if="{{lapEnabled && (mode === 'stopwatch' || mode === 'clock') && lapPreview.length && !focusMode}}" catchtap="onUIAreaTap">
         <view class="lap-line" wx:for="{{lapPreview}}" wx:key="index">第{{item.index}}次　{{item.cumulativeText}}</view>
         <text class="lap-more" wx:if="{{lapMore}}" catchtap="openLapPanel">More</text>
       </view>
@@ -91,13 +106,41 @@
           wx:if="{{capabilities.toggle}}" bindtap="onStart">{{startLabel}}</view>
   </view>
 
-  <!-- 5b 计次按钮：正计时运行中，或时钟模式；位于操作组对侧 -->
-  <view class="lap-btn {{actionSide === 'left' ? 'is-right' : 'is-left'}}"
-        wx:if="{{!focusMode && ((mode === 'stopwatch' && running) || mode === 'clock')}}" bindtap="onLap">计次</view>
+  <!-- 5b 计次按钮：时钟 / 正计时开启「计次」后显示，位于操作组对侧 -->
+  <view class="lap-btn {{actionSide === 'left' ? 'is-right' : 'is-left'}} {{mode === 'stopwatch' && !running ? 'is-disabled' : ''}}"
+        wx:if="{{!focusMode && lapEnabled && (mode === 'clock' || mode === 'stopwatch')}}"
+        catchtap="onLap">计次</view>
 
-  <!-- 6 底部工具栏：第一行所有模式共有，第二行模式专属 -->
+  <!-- 6 底部工具栏：第一行模式专属 + 更多，第二行通用设置（默认收起） -->
   <view class="toolbar" wx:if="{{!focusMode}}" catchtap="onUIAreaTap">
-    <view class="toolbar-row toolbar-row--common">
+    <view class="toolbar-row toolbar-row--mode">
+      <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onAlarmTap">
+        <text class="toolbar-btn__desc">闹钟</text>
+        <text class="toolbar-btn__value">{{alarmOn ? alarmText : '关'}}</text>
+      </view>
+      <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onToggleClock24h">
+        <text class="toolbar-btn__desc">时制</text>
+        <text class="toolbar-btn__value">{{clock24h ? '24时' : '12时'}}</text>
+      </view>
+      <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onToggleClockSeconds">
+        <text class="toolbar-btn__desc">显示秒</text>
+        <text class="toolbar-btn__value">{{clockShowSeconds ? '开' : '关'}}</text>
+      </view>
+      <view class="toolbar-btn" wx:if="{{mode === 'clock' || mode === 'stopwatch'}}" bindtap="onToggleLapEnabled">
+        <text class="toolbar-btn__desc">计次</text>
+        <text class="toolbar-btn__value">{{lapEnabled ? '开' : '关'}}</text>
+      </view>
+      <view class="toolbar-btn" wx:for="{{actions}}" wx:key="key"
+            data-key="{{item.key}}" bindtap="onActionTap">
+        <text class="toolbar-btn__desc">{{item.label}}</text>
+        <text class="toolbar-btn__value">{{item.value}}</text>
+      </view>
+      <view class="toolbar-btn" bindtap="onToggleMore">
+        <text class="toolbar-btn__desc">更多</text>
+        <text class="toolbar-btn__value">{{moreOpen ? '收起' : '展开'}}</text>
+      </view>
+    </view>
+    <view class="toolbar-row toolbar-row--common" wx:if="{{moreOpen}}">
       <view class="toolbar-btn" bindtap="onToggleTheme">
         <text class="toolbar-btn__desc">背景颜色</text>
         <text class="toolbar-btn__value">{{theme === 'dark' ? '深色' : '浅色'}}</text>
@@ -133,25 +176,6 @@
       <view class="toolbar-btn" bindtap="onToggleActionSide">
         <text class="toolbar-btn__desc">按钮位置</text>
         <text class="toolbar-btn__value">{{actionSide === 'left' ? '反' : '正'}}</text>
-      </view>
-    </view>
-    <view class="toolbar-row toolbar-row--mode">
-      <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onAlarmTap">
-        <text class="toolbar-btn__desc">闹钟</text>
-        <text class="toolbar-btn__value">{{alarmOn ? alarmText : '关'}}</text>
-      </view>
-      <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onToggleClock24h">
-        <text class="toolbar-btn__desc">时制</text>
-        <text class="toolbar-btn__value">{{clock24h ? '24时' : '12时'}}</text>
-      </view>
-      <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onToggleClockSeconds">
-        <text class="toolbar-btn__desc">显示秒</text>
-        <text class="toolbar-btn__value">{{clockShowSeconds ? '开' : '关'}}</text>
-      </view>
-      <view class="toolbar-btn" wx:for="{{actions}}" wx:key="key"
-            data-key="{{item.key}}" bindtap="onActionTap">
-        <text class="toolbar-btn__desc">{{item.label}}</text>
-        <text class="toolbar-btn__value">{{item.value}}</text>
       </view>
     </view>
   </view>
@@ -216,7 +240,7 @@
     <view class="contact-body">
       <view class="contact-info">
         <view class="contact-tip">使用遇到问题，或想要新功能，直接加我微信</view>
-        <view class="contact-tip">如需开发小程序，也可以加我，本号作为接单平台。</view>
+        <view class="contact-tip">如需开发小程序，也可以加我。</view>
         <text class="contact-id" selectable>{{wechatId}}</text>
         <view class="panel-actions">
           <button class="panel-btn" bindtap="copyWechatId">复制微信号</button>
