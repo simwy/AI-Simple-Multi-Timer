@@ -646,12 +646,14 @@ page {
   margin-bottom: 8px;
 }
 .panel.is-raised .panel-input {
-  padding: 4px 0;
+  height: 34px;
+  line-height: 34px;
   font-size: 18px;
 }
 .panel.is-raised .panel-btn {
+  height: 32px;
+  line-height: 32px;
   font-size: 14px;
-  line-height: 1.5;
 }
 .panel-title {
   font-size: 20px;
@@ -671,11 +673,13 @@ page {
 }
 .panel-input {
   width: 72px;
+  height: 44px;
+  line-height: 44px;
   text-align: center;
   background: var(--pill-bg);
   color: var(--fg);
   border-radius: 10px;
-  padding: 6px 0;
+  padding: 0;
   font-size: 20px;
   border: 2px solid transparent;
   box-sizing: border-box;
@@ -694,11 +698,17 @@ page {
 .panel-btn {
   flex: 1;
   margin: 0;
+  padding: 0;
+  height: 38px;
+  min-height: 0;
+  line-height: 38px;
   border-radius: 999px;
   background: var(--accent);
   color: #fff;
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: 15px;
+}
+.panel-btn::after {
+  border: none;
 }
 .panel-btn.secondary {
   background: var(--pill-bg);
@@ -749,8 +759,9 @@ page {
   gap: 10px;
 }
 .contact-panel .panel-btn {
+  height: 38px;
+  line-height: 38px;
   font-size: 16px;
-  line-height: 1.6;
 }
 .contact-qr {
   display: block;

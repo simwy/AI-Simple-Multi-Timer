@@ -20,7 +20,7 @@
   <view class="stage">
     <!-- 子时间区：固定占位，空字符串也保留高度 -->
     <view class="sub-time" wx:if="{{showSubTime}}">
-      <view class="phase-badge phase-{{pomodoroPhase}}" wx:if="{{mode === 'pomodoro'}}">
+      <view class="phase-badge phase-{{pomodoroPhase}}" wx:if="{{mode === 'pomodoro' && subTime}}">
         <view class="phase-dot"></view>
         <text>{{subTime}}</text>
       </view>

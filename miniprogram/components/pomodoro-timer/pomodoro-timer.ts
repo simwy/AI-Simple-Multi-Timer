@@ -263,6 +263,8 @@ Component({
     },
 
     _subTime(): string {
+      // 未开始时不显示「工作时间」等提示，点击开始后才出现
+      if (!started) return ''
       const { phase, finished, completed } = this.data
       if (phase === 'work') {
         return finished

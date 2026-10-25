@@ -124,7 +124,7 @@ const END_ALERT_LABELS: Record<EndAlert, string> = {
 // 全局设置默认值：首次进入、以及「重置设置」时使用
 const DEFAULT_THEME = 'dark' as 'dark' | 'light'
 const DEFAULT_STYLE: StyleKey = 'white'
-const DEFAULT_FONT_SIZE: FontSizeKey = 'm'
+const DEFAULT_FONT_SIZE: FontSizeKey = 'l'
 const DEFAULT_FONT_FAMILY: FontFamilyKey = 'seven'
 const DEFAULT_GRADIENT = true
 const DEFAULT_SHOW_CENTIS = false
