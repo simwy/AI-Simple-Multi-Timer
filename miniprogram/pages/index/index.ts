@@ -1,5 +1,7 @@
 // index.ts
 // 大屏计时器页面：只负责布局、公共样式与模式编排；计时逻辑在各自组件内。
+import { formatDurationLabel } from '../../utils/time'
+
 type Mode = 'clock' | 'stopwatch' | 'countdown' | 'pomodoro'
 type StyleKey = 'white' | 'green' | 'amber'
 
@@ -11,6 +13,7 @@ interface ModeAction {
   valueMs: number
   minMs: number
   storageKey: string
+  value?: string
 }
 
 interface Capabilities {
@@ -140,7 +143,10 @@ Component({
         finished: !!detail.finished,
         subTime: detail.subTime || '',
         capabilities: detail.capabilities || NO_CAPABILITIES,
-        actions: detail.actions || [],
+        actions: (detail.actions || []).map((a: ModeAction) => ({
+          ...a,
+          value: formatDurationLabel(a.valueMs),
+        })),
       })
     },
 

@@ -77,7 +77,7 @@ page {
   color: var(--dim);
   font-size: 22px;
   letter-spacing: 2px;
-  margin-top: 4px;
+  margin-top: 28px;
 }
 
 /* ===== 3 主时间区 ===== */
@@ -94,7 +94,7 @@ page {
 
   /* 字体类属性可继承进自定义组件，作为 apply-shared 之外的第二重保障 */
   font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
-  font-size: 14vw;
+  font-size: 10vw;
   letter-spacing: 2px;
   color: var(--digit-color);
   text-align: center;
@@ -114,7 +114,7 @@ page {
 .main-time__value {
   font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
   color: var(--digit-color, var(--fg));
-  font-size: 14vw;
+  font-size: 10vw;
   text-align: center;
   white-space: nowrap;
   letter-spacing: 2px;
@@ -190,12 +190,23 @@ page {
   padding: 12px 0 24px;
 }
 .toolbar-btn {
-  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 16px;
   border-radius: 999px;
   background: var(--pill-bg);
+}
+.toolbar-btn__desc {
   color: var(--pill-text);
   font-size: 20px;
-  line-height: 1.5;
+  line-height: 1.3;
+}
+.toolbar-btn__value {
+  color: var(--dim);
+  font-size: 14px;
+  line-height: 1.2;
+  letter-spacing: 0.5px;
 }
 
 /* ===== 7 时长设置弹层 ===== */

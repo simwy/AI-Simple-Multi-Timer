@@ -34,10 +34,19 @@
 
   <!-- 6 底部工具栏：前两个公共按钮 + 组件声明的模式专属按钮 -->
   <view class="toolbar">
-    <view class="toolbar-btn" bindtap="onCycleStyle">{{styleLabel}}</view>
-    <view class="toolbar-btn" bindtap="onToggleTheme">{{theme === 'dark' ? '深色' : '浅色'}}</view>
+    <view class="toolbar-btn" bindtap="onCycleStyle">
+      <text class="toolbar-btn__desc">样式</text>
+      <text class="toolbar-btn__value">{{styleLabel}}</text>
+    </view>
+    <view class="toolbar-btn" bindtap="onToggleTheme">
+      <text class="toolbar-btn__desc">主题</text>
+      <text class="toolbar-btn__value">{{theme === 'dark' ? '深色' : '浅色'}}</text>
+    </view>
     <view class="toolbar-btn" wx:for="{{actions}}" wx:key="key"
-          data-key="{{item.key}}" bindtap="onActionTap">{{item.label}}</view>
+          data-key="{{item.key}}" bindtap="onActionTap">
+      <text class="toolbar-btn__desc">{{item.label}}</text>
+      <text class="toolbar-btn__value">{{item.value}}</text>
+    </view>
   </view>
 
   <!-- 7 时长设置弹层（倒计时 / 工作 / 休息共用） -->

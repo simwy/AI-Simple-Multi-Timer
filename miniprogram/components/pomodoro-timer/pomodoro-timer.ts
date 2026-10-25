@@ -1,6 +1,6 @@
 // pomodoro-timer.ts
 // 番茄计时：工作 / 休息阶段循环。震动、亮屏与「时间到」由页面统一处理，样式由页面统一下发。
-import { formatDurationLabel, formatHMSxx } from '../../utils/time'
+import { formatHMSxx } from '../../utils/time'
 
 const TICK_MS = 16
 const DEFAULT_WORK_MS = 25 * 60 * 1000
@@ -21,7 +21,7 @@ const nextPhase = (phase: Phase): Phase => (phase === 'work' ? 'rest' : 'work')
 const buildActions = () => [
   {
     key: 'work',
-    label: `工作 ${formatDurationLabel(workMs)}`,
+    label: '工作',
     kind: 'duration',
     title: '工作时长',
     valueMs: workMs,
@@ -30,7 +30,7 @@ const buildActions = () => [
   },
   {
     key: 'rest',
-    label: `休息 ${formatDurationLabel(restMs)}`,
+    label: '休息',
     kind: 'duration',
     title: '休息时长',
     valueMs: restMs,
