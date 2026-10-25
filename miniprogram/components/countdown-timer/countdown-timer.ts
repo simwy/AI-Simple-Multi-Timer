@@ -14,7 +14,7 @@ let tickTimer: ReturnType<typeof setInterval> | undefined
 const buildActions = () => [
   {
     key: 'countdown',
-    label: '设置',
+    label: '倒计时长',
     kind: 'duration',
     title: '倒计时时长',
     valueMs: durationMs,

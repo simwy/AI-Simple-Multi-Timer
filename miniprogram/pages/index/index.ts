@@ -62,6 +62,7 @@ Component({
     subTime: '',
     running: false,
     finished: false,
+    focusMode: false,
     capabilities: NO_CAPABILITIES,
     actions: [] as ModeAction[],
 
@@ -236,6 +237,12 @@ Component({
       this.setData({ theme })
       wx.setStorageSync('timer.theme', theme)
     },
+
+    // ===== 专注模式：点击空白区域，切换「只显示主/子时间」与「显示全部」 =====
+    onToggleFocus() {
+      this.setData({ focusMode: !this.data.focusMode })
+    },
+    noop() {},
 
     // ===== 持久化（仅主题 / 样式；时长由各按钮的 storageKey 负责） =====
     _loadPersisted() {

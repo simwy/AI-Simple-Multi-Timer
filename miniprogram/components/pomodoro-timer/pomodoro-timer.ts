@@ -21,7 +21,7 @@ const nextPhase = (phase: Phase): Phase => (phase === 'work' ? 'rest' : 'work')
 const buildActions = () => [
   {
     key: 'work',
-    label: '工作',
+    label: '工作时长',
     kind: 'duration',
     title: '工作时长',
     valueMs: workMs,
@@ -30,7 +30,7 @@ const buildActions = () => [
   },
   {
     key: 'rest',
-    label: '休息',
+    label: '休息时长',
     kind: 'duration',
     title: '休息时长',
     valueMs: restMs,
