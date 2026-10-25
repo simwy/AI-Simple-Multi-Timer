@@ -1,0 +1,237 @@
+/**index.scss**/
+page {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  box-sizing: border-box;
+  overflow: hidden;
+
+  /* 深色主题变量（默认） */
+  --bg: #000000;
+  --fg: #e6e6e6;
+  --dim: #8a8a8a;
+  --pill-bg: #1c1c1e;
+  --pill-text: #b0b0b0;
+  --tab-bg: #151515;
+  --tab-active-bg: #2c2c2e;
+  --accent: #34d058;
+  --reset-fg: #ffffff;
+  --panel-bg: #1a1a1c;
+  --glow: rgba(52, 208, 88, 0.24);
+
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* 浅色主题变量覆盖 */
+.theme-light {
+  --bg: #f5f5f7;
+  --fg: #111111;
+  --dim: #666666;
+  --pill-bg: #e4e4e6;
+  --pill-text: #444444;
+  --tab-bg: #ececee;
+  --tab-active-bg: #d4d4d6;
+  --accent: #1a9c3a;
+  --reset-fg: #111111;
+  --panel-bg: #ffffff;
+  --glow: rgba(26, 156, 58, 0.16);
+}
+
+/* ===== 顶部分段控件 ===== */
+.modes {
+  align-self: center;
+  display: flex;
+  margin-top: 12px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--tab-bg);
+}
+.mode-item {
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-size: 22px;
+  line-height: 1.5;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.mode-item.active {
+  background: var(--tab-active-bg);
+  color: var(--fg);
+}
+
+/* ===== 胶囊按钮（通用） ===== */
+.pill {
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: var(--pill-bg);
+  color: var(--pill-text);
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+/* ===== 日期 ===== */
+.date {
+  text-align: center;
+  color: var(--dim);
+  font-size: 22px;
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+
+/* ===== 数字 ===== */
+.digits {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.digits text {
+  font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
+  color: var(--fg);
+  font-size: 14vw;
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 2px;
+  text-shadow: 0 0 20px var(--glow);
+}
+.digits.style-green text { color: #34d058; text-shadow: 0 0 20px rgba(52, 208, 88, 0.45); }
+.digits.style-amber text { color: #ffb020; text-shadow: 0 0 20px rgba(255, 176, 32, 0.45); }
+.digits.finished text {
+  color: #ff453a;
+  text-shadow: 0 0 20px rgba(255, 69, 58, 0.55);
+  animation: blink 0.5s ease-in-out infinite alternate;
+}
+
+.timeup {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ff453a;
+  font-size: 28px;
+  letter-spacing: 6px;
+}
+
+@keyframes blink {
+  from { opacity: 1; }
+  to { opacity: 0.2; }
+}
+
+/* ===== 右下角操作 ===== */
+.actions {
+  position: absolute;
+  right: 32px;
+  bottom: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.circle {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+.circle.reset {
+  color: var(--reset-fg);
+  background: rgba(128, 128, 128, 0.15);
+}
+.circle.start {
+  color: var(--accent);
+  background: rgba(52, 208, 88, 0.12);
+}
+.circle.start.running {
+  color: #ffb020;
+}
+
+/* ===== 底部胶囊行 ===== */
+.pills {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 0 24px;
+}
+
+/* ===== 设置面板 ===== */
+.mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+.panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--panel-bg);
+  border-radius: 20px;
+  padding: 28px;
+  width: 460px;
+  z-index: 11;
+  color: var(--fg);
+}
+.panel-title {
+  font-size: 28px;
+  margin-bottom: 16px;
+}
+.panel-label {
+  font-size: 20px;
+  color: var(--dim);
+  margin-bottom: 10px;
+}
+.panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.panel-input {
+  width: 96px;
+  text-align: center;
+  background: var(--pill-bg);
+  color: var(--fg);
+  border-radius: 12px;
+  padding: 6px 0;
+  font-size: 26px;
+}
+.panel-colon {
+  font-size: 26px;
+  color: var(--dim);
+}
+.panel-actions {
+  display: flex;
+  gap: 12px;
+}
+.panel-btn {
+  flex: 1;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 24px;
+  line-height: 2.4;
+}
+.panel-btn.secondary {
+  background: var(--pill-bg);
+  color: var(--fg);
+}

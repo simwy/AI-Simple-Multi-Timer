@@ -1,0 +1,52 @@
+<!--index.wxml-->
+<view class="page theme-{{theme}}">
+
+  <!-- 顶部分段控件 -->
+  <view class="modes">
+    <view class="mode-item {{mode === 'clock' ? 'active' : ''}}" data-mode="clock" bindtap="onSwitchMode">时钟</view>
+    <view class="mode-item {{mode === 'stopwatch' ? 'active' : ''}}" data-mode="stopwatch" bindtap="onSwitchMode">正计时</view>
+    <view class="mode-item {{mode === 'countdown' ? 'active' : ''}}" data-mode="countdown" bindtap="onSwitchMode">倒计时</view>
+  </view>
+
+  <!-- 日期（仅时钟模式） -->
+  <view class="date" wx:if="{{mode === 'clock'}}">{{dateStr}}</view>
+
+  <!-- 中间数字 -->
+  <view class="digits {{mode === 'clock' ? 'clock' : 'timing'}} style-{{style}} {{cdFinished ? 'finished' : ''}}">
+    <text wx:if="{{mode === 'clock'}}">{{timeStr}}</text>
+    <text wx:elif="{{mode === 'stopwatch'}}">{{swDisplay}}</text>
+    <text wx:else>{{cdDisplay}}</text>
+  </view>
+  <view class="timeup" wx:if="{{cdFinished}}">时间到</view>
+
+  <!-- 右下角操作（时钟模式隐藏） -->
+  <view class="actions" wx:if="{{mode !== 'clock'}}">
+    <view class="circle reset" bindtap="onReset">重置</view>
+    <view class="circle start {{(mode === 'stopwatch' && swRunning) || (mode === 'countdown' && cdRunning) ? 'running' : ''}}" bindtap="onStartStop">{{(mode === 'stopwatch' && swRunning) || (mode === 'countdown' && cdRunning) ? '暂停' : '开始'}}</view>
+  </view>
+
+  <!-- 底部胶囊 -->
+  <view class="pills">
+    <view class="pill" bindtap="cycleStyle">{{styleLabel}}</view>
+    <view class="pill" bindtap="toggleTheme">{{theme === 'dark' ? '深色' : '浅色'}}</view>
+    <view class="pill" bindtap="toggleSettings">设置</view>
+  </view>
+
+  <!-- 设置面板 -->
+  <view class="mask" wx:if="{{showSettingsPanel}}" bindtap="toggleSettings"></view>
+  <view class="panel" wx:if="{{showSettingsPanel}}">
+    <view class="panel-title">设置</view>
+    <view class="panel-label">倒计时时长（时 : 分 : 秒）</view>
+    <view class="panel-row">
+      <input class="panel-input" type="number" value="{{cdH}}" bindinput="onCdHInput" />
+      <text class="panel-colon">:</text>
+      <input class="panel-input" type="number" value="{{cdM}}" bindinput="onCdMInput" />
+      <text class="panel-colon">:</text>
+      <input class="panel-input" type="number" value="{{cdS}}" bindinput="onCdSInput" />
+    </view>
+    <view class="panel-actions">
+      <button class="panel-btn" bindtap="applyCdDuration">确定</button>
+      <button class="panel-btn secondary" bindtap="toggleSettings">关闭</button>
+    </view>
+  </view>
+</view>
