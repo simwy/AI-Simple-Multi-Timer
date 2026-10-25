@@ -72,6 +72,14 @@ Component({
       if (this.data.running) this._pause()
       else this._start()
     },
+    /** 页面「开始」按钮：未运行时启动 */
+    start() {
+      if (!this.data.running) this._start()
+    },
+    /** 页面「暂停」按钮：运行中暂停 */
+    pause() {
+      if (this.data.running) this._pause()
+    },
     reset() {
       this._stopTick()
       remainingMs = durationMs

@@ -47,6 +47,8 @@ Component({
       this._stopTick()
     },
     toggle() {},
+    start() {},
+    pause() {},
     reset() {},
     setDuration() {},
 

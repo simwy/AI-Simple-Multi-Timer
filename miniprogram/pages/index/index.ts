@@ -66,6 +66,9 @@ Component({
     capabilities: NO_CAPABILITIES,
     actions: [] as ModeAction[],
 
+    // 操作组贴边方向（全局设置，默认右侧）
+    actionSide: 'right' as 'left' | 'right',
+
     // 时长设置弹层（组件只给参数，弹层由页面统一渲染）
     durationTarget: '',
     durationTitle: '',
@@ -173,10 +176,14 @@ Component({
       return pending
     },
 
-    // ===== 主操作（重置 / 开始） =====
-    onToggle() {
+    // ===== 主操作（重置 / 暂停 / 开始） =====
+    onStart() {
       const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
-      if (comp) comp.toggle()
+      if (comp) comp.start()
+    },
+    onPause() {
+      const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
+      if (comp) comp.pause()
     },
     onReset() {
       const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
@@ -238,6 +245,13 @@ Component({
       wx.setStorageSync('timer.theme', theme)
     },
 
+    // ===== 操作组贴边方向 =====
+    onToggleActionSide() {
+      const actionSide = this.data.actionSide === 'right' ? 'left' : 'right'
+      this.setData({ actionSide })
+      wx.setStorageSync('timer.actionSide', actionSide)
+    },
+
     // ===== 专注模式：点击空白区域，切换「只显示主/子时间」与「显示全部」 =====
     onToggleFocus() {
       this.setData({ focusMode: !this.data.focusMode })
@@ -248,12 +262,14 @@ Component({
     _loadPersisted() {
       const theme = wx.getStorageSync('timer.theme')
       const style = wx.getStorageSync('timer.style')
+      const actionSide = wx.getStorageSync('timer.actionSide')
       const updates: any = {}
       if (theme === 'light' || theme === 'dark') updates.theme = theme
       if (style === 'white' || style === 'green' || style === 'amber') {
         updates.style = style
         updates.styleLabel = STYLE_LABELS[style as StyleKey]
       }
+      if (actionSide === 'left' || actionSide === 'right') updates.actionSide = actionSide
       if (Object.keys(updates).length) this.setData(updates)
     },
   },
