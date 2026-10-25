@@ -12,16 +12,35 @@
     <!-- 子时间区：固定占位，空字符串也保留高度 -->
     <view class="sub-time">{{subTime}}</view>
 
-    <!-- 主时间区：4 个组件常驻，非激活项隐藏 -->
-    <view class="main-time style-{{style}} {{finished ? 'is-finished' : ''}}">
+    <!-- 主时间区：4 个组件常驻，非激活项 / 可编辑态隐藏 -->
+    <view class="main-time style-{{style}} font-{{fontSize}} {{finished ? 'is-finished' : ''}}">
+      <!-- 倒计时 / 番茄未开始时：页面自绘分段，可上下滑动调时 -->
+      <view class="edit-time" wx:if="{{editable}}">
+        <view class="edit-seg" data-unit="h" bindtouchstart="onEditTouchStart"
+              catchtouchmove="onEditTouchMove" bindtouchend="onEditTouchEnd"
+              bindtouchcancel="onEditTouchEnd">{{editH}}</view>
+        <text class="edit-colon">:</text>
+        <view class="edit-seg" data-unit="m" bindtouchstart="onEditTouchStart"
+              catchtouchmove="onEditTouchMove" bindtouchend="onEditTouchEnd"
+              bindtouchcancel="onEditTouchEnd">{{editM}}</view>
+        <text class="edit-colon">:</text>
+        <view class="edit-seg" data-unit="s" bindtouchstart="onEditTouchStart"
+              catchtouchmove="onEditTouchMove" bindtouchend="onEditTouchEnd"
+              bindtouchcancel="onEditTouchEnd">{{editS}}</view>
+        <text class="edit-frac" wx:if="{{showCentis}}">.00</text>
+      </view>
+      <view class="edit-hint {{editTouched ? 'is-faded' : ''}}" wx:if="{{editable}}">上下滑动调整</view>
+
       <clock-timer id="clock-timer" class="mode-host {{mode === 'clock' ? '' : 'hidden'}}"
                    data-mode="clock" bind:statechange="onStateChange" />
       <stopwatch-timer id="stopwatch-timer" class="mode-host {{mode === 'stopwatch' ? '' : 'hidden'}}"
-                       data-mode="stopwatch" bind:statechange="onStateChange" />
-      <countdown-timer id="countdown-timer" class="mode-host {{mode === 'countdown' ? '' : 'hidden'}}"
-                       data-mode="countdown" bind:statechange="onStateChange" />
-      <pomodoro-timer id="pomodoro-timer" class="mode-host {{mode === 'pomodoro' ? '' : 'hidden'}}"
-                      data-mode="pomodoro" bind:statechange="onStateChange" />
+                       data-mode="stopwatch" show-centis="{{showCentis}}" bind:statechange="onStateChange" />
+      <countdown-timer id="countdown-timer"
+                       class="mode-host {{mode === 'countdown' && !editable ? '' : 'hidden'}}"
+                       data-mode="countdown" show-centis="{{showCentis}}" bind:statechange="onStateChange" />
+      <pomodoro-timer id="pomodoro-timer"
+                      class="mode-host {{mode === 'pomodoro' && !editable ? '' : 'hidden'}}"
+                      data-mode="pomodoro" show-centis="{{showCentis}}" bind:statechange="onStateChange" />
     </view>
 
     <!-- 与子时间等高的空占位，让主时间成为整组的垂直中心 -->
@@ -54,6 +73,14 @@
     <view class="toolbar-btn" wx:if="{{capabilities.toggle || capabilities.reset}}" bindtap="onToggleActionSide">
       <text class="toolbar-btn__desc">按钮位置</text>
       <text class="toolbar-btn__value">{{actionSide === 'left' ? '左侧' : '右侧'}}</text>
+    </view>
+    <view class="toolbar-btn" bindtap="onCycleFontSize">
+      <text class="toolbar-btn__desc">字号</text>
+      <text class="toolbar-btn__value">{{fontSizeLabel}}</text>
+    </view>
+    <view class="toolbar-btn" bindtap="onTogglePrecision">
+      <text class="toolbar-btn__desc">精度</text>
+      <text class="toolbar-btn__value">{{showCentis ? '含小数' : '整秒'}}</text>
     </view>
     <view class="toolbar-btn" wx:for="{{actions}}" wx:key="key"
           data-key="{{item.key}}" bindtap="onActionTap">

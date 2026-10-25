@@ -1,14 +1,21 @@
 // time.ts
 // 计时器格式化纯函数
 
-const pad2 = (n: number): string => (n < 10 ? '0' : '') + n
+export const pad2 = (n: number): string => (n < 10 ? '0' : '') + n
+
+/** 毫秒 → { 时, 分, 秒 }（向下取整到秒） */
+export const splitHMS = (ms: number): { h: number; m: number; s: number } => {
+  const totalSec = Math.max(0, Math.floor(ms / 1000))
+  return {
+    h: Math.floor(totalSec / 3600),
+    m: Math.floor((totalSec % 3600) / 60),
+    s: totalSec % 60,
+  }
+}
 
 /** 毫秒 → HH:MM:SS（小时可超过 2 位） */
 export const formatHMS = (ms: number): string => {
-  const totalSec = Math.floor(ms / 1000)
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = totalSec % 60
+  const { h, m, s } = splitHMS(ms)
   return `${pad2(h)}:${pad2(m)}:${pad2(s)}`
 }
 

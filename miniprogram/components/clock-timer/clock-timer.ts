@@ -87,6 +87,9 @@ Component({
         subTime: dateStr,
         capabilities: { toggle: false, reset: false },
         actions: [],
+        editable: false,
+        editKey: '',
+        editValueMs: 0,
       })
     },
   },

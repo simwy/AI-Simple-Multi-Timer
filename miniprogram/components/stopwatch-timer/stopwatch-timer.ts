@@ -1,6 +1,6 @@
 // stopwatch-timer.ts
 // 正计时：从 0 开始累计，支持开始 / 暂停 / 重置。样式由页面统一下发。
-import { formatHMSxx } from '../../utils/time'
+import { formatHMS, formatHMSxx } from '../../utils/time'
 
 const TICK_MS = 16
 
@@ -10,6 +10,17 @@ let startAt = 0
 let tickTimer: ReturnType<typeof setInterval> | undefined
 
 Component({
+  properties: {
+    // 由页面下发：是否显示秒后的两位小数
+    showCentis: {
+      type: Boolean,
+      value: true,
+      observer(this: any, value: boolean) {
+        this._refreshDisplay(value)
+      },
+    },
+  },
+
   data: {
     display: '00:00:00.00',
     running: false,
@@ -20,7 +31,7 @@ Component({
       isActive = false
       baseMs = 0
       startAt = 0
-      this.setData({ display: formatHMSxx(0), running: false })
+      this.setData({ display: this._fmt(0), running: false })
       this._emitState()
     },
     detached() {
@@ -64,7 +75,7 @@ Component({
       this._stopTick()
       baseMs = 0
       startAt = 0
-      this.setData({ display: formatHMSxx(0), running: false })
+      this.setData({ display: this._fmt(0), running: false })
       this._emitState()
     },
     setDuration() {},
@@ -80,12 +91,26 @@ Component({
       baseMs += Date.now() - startAt
       startAt = 0
       this._stopTick()
-      this.setData({ display: formatHMSxx(baseMs), running: false })
+      this.setData({ display: this._fmt(baseMs), running: false })
       this._emitState()
     },
 
     _tick() {
-      this.setData({ display: formatHMSxx(baseMs + (Date.now() - startAt)) })
+      const display = this._fmt(baseMs + (Date.now() - startAt))
+      // 「整秒」精度下同一秒内不必重复 setData
+      if (display !== this.data.display) this.setData({ display })
+    },
+
+    /** 精度设置切换后立即重排当前显示 */
+    _refreshDisplay(showCentis?: boolean) {
+      const current = baseMs + (startAt ? Date.now() - startAt : 0)
+      this.setData({ display: this._fmt(current, showCentis) })
+    },
+
+    /** 按当前精度设置格式化（含 / 不含百分秒） */
+    _fmt(ms: number, showCentis?: boolean): string {
+      const withCentis = typeof showCentis === 'boolean' ? showCentis : this.data.showCentis
+      return withCentis ? formatHMSxx(ms) : formatHMS(ms)
     },
 
     _startTick() {
@@ -107,6 +132,9 @@ Component({
         subTime: '',
         capabilities: { toggle: true, reset: true },
         actions: [],
+        editable: false,
+        editKey: '',
+        editValueMs: 0,
       })
     },
   },

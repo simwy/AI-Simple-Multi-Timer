@@ -1,6 +1,6 @@
 // pomodoro-timer.ts
 // 番茄计时：工作 / 休息阶段循环。震动、亮屏与「时间到」由页面统一处理，样式由页面统一下发。
-import { formatHMSxx } from '../../utils/time'
+import { formatHMS, formatHMSxx } from '../../utils/time'
 
 const TICK_MS = 16
 const DEFAULT_WORK_MS = 25 * 60 * 1000
@@ -10,6 +10,7 @@ const MIN_DURATION_MS = 1000
 type Phase = 'work' | 'rest'
 
 let isActive = false
+let started = false
 let workMs = DEFAULT_WORK_MS
 let restMs = DEFAULT_REST_MS
 let remainingMs = DEFAULT_WORK_MS
@@ -40,6 +41,17 @@ const buildActions = () => [
 ]
 
 Component({
+  properties: {
+    // 由页面下发：是否显示秒后的两位小数
+    showCentis: {
+      type: Boolean,
+      value: true,
+      observer(this: any, value: boolean) {
+        this._refreshDisplay(value)
+      },
+    },
+  },
+
   data: {
     display: formatHMSxx(DEFAULT_WORK_MS),
     running: false,
@@ -51,12 +63,13 @@ Component({
   lifetimes: {
     attached() {
       isActive = false
+      started = false
       workMs = DEFAULT_WORK_MS
       restMs = DEFAULT_REST_MS
       remainingMs = workMs
       endAt = 0
       this.setData({
-        display: formatHMSxx(workMs),
+        display: this._fmt(workMs),
         running: false,
         finished: false,
         phase: 'work',
@@ -103,6 +116,7 @@ Component({
     },
     reset() {
       this._stopTick()
+      started = false
       remainingMs = workMs
       endAt = 0
       this.setData({
@@ -110,7 +124,7 @@ Component({
         running: false,
         finished: false,
         completed: 0,
-        display: formatHMSxx(remainingMs),
+        display: this._fmt(remainingMs),
       })
       this._emitState()
     },
@@ -126,7 +140,7 @@ Component({
         (key === 'rest' && this.data.phase === 'rest')
       if (isCurrent && !this.data.running && !this.data.finished) {
         remainingMs = value
-        this.setData({ display: formatHMSxx(value) })
+        this.setData({ display: this._fmt(value) })
       }
       this._emitState()
     },
@@ -136,10 +150,11 @@ Component({
     },
 
     _start() {
+      started = true
       if (this.data.finished) {
         const phase = nextPhase(this.data.phase)
         remainingMs = this._durationOf(phase)
-        this.setData({ phase, finished: false, display: formatHMSxx(remainingMs) })
+        this.setData({ phase, finished: false, display: this._fmt(remainingMs) })
       } else if (remainingMs <= 0) {
         remainingMs = this._durationOf(this.data.phase)
       }
@@ -158,13 +173,15 @@ Component({
       remainingMs = rem
       endAt = 0
       this._stopTick()
-      this.setData({ display: formatHMSxx(rem), running: false })
+      this.setData({ display: this._fmt(rem), running: false })
       this._emitState()
     },
 
     _tick() {
       const rem = Math.max(0, endAt - Date.now())
-      this.setData({ display: formatHMSxx(rem) })
+      const display = this._fmt(rem)
+      // 「整秒」精度下同一秒内不必重复 setData
+      if (display !== this.data.display) this.setData({ display })
       if (rem <= 0) this._endStage()
     },
 
@@ -178,9 +195,21 @@ Component({
         running: false,
         finished: true,
         completed,
-        display: '00:00:00.00',
+        display: this._fmt(0),
       })
       this._emitState()
+    },
+
+    /** 精度设置切换后立即重排当前显示 */
+    _refreshDisplay(showCentis?: boolean) {
+      const remaining = this.data.running && endAt ? Math.max(0, endAt - Date.now()) : remainingMs
+      this.setData({ display: this._fmt(remaining, showCentis) })
+    },
+
+    /** 按当前精度设置格式化（含 / 不含百分秒） */
+    _fmt(ms: number, showCentis?: boolean): string {
+      const withCentis = typeof showCentis === 'boolean' ? showCentis : this.data.showCentis
+      return withCentis ? formatHMSxx(ms) : formatHMS(ms)
     },
 
     _startTick() {
@@ -210,6 +239,9 @@ Component({
         subTime: this._subTime(),
         capabilities: { toggle: true, reset: true },
         actions: buildActions(),
+        editable: !started,
+        editKey: this.data.phase,
+        editValueMs: this._durationOf(this.data.phase),
       })
     },
   },

@@ -10,6 +10,7 @@ page {
   position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   height: 100vh;
   width: 100vw;
   box-sizing: border-box;
@@ -49,6 +50,8 @@ page {
 
 /* ===== 1 顶部模式栏 ===== */
 .mode-bar {
+  position: relative;
+  z-index: 2;
   align-self: center;
   display: flex;
   margin-top: 12px;
@@ -57,9 +60,9 @@ page {
   background: var(--tab-bg);
 }
 .mode-tab {
-  padding: 7px 11px;
+  padding: 7px 18px;
   border-radius: 999px;
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1.4;
   color: var(--dim);
   white-space: nowrap;
@@ -69,9 +72,13 @@ page {
   color: var(--fg);
 }
 
-/* ===== 2/3 子时间 + 主时间：成组垂直居中，间距固定 ===== */
+/* ===== 2/3 子时间 + 主时间：铺满整屏居中，上下栏显隐不改变位置 ===== */
 .stage {
-  flex: 1;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -98,6 +105,7 @@ page {
 
 /* ===== 3 主时间区 ===== */
 .main-time {
+  position: relative;
   flex: none;
   display: flex;
   align-items: center;
@@ -106,15 +114,24 @@ page {
   /* 配色档通过 CSS 变量下发到组件内部文字 */
   --digit-color: var(--fg);
   --digit-glow: var(--glow);
+  /* 主时间字号：小 / 中 / 大，页面设置栏切换 */
+  --main-font-size: 10.5vw;
 
   /* 字体类属性可继承进自定义组件，作为 apply-shared 之外的第二重保障 */
   font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
-  font-size: 13vw;
+  font-size: var(--main-font-size);
+  line-height: 1.2;
   letter-spacing: 2px;
   color: var(--digit-color);
   text-align: center;
   white-space: nowrap;
   text-shadow: 0 0 20px var(--digit-glow);
+}
+.main-time.font-s {
+  --main-font-size: 8.5vw;
+}
+.main-time.font-l {
+  --main-font-size: 13vw;
 }
 .main-time.style-green {
   --digit-color: #34d058;
@@ -129,11 +146,54 @@ page {
 .main-time__value {
   font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
   color: var(--digit-color, var(--fg));
-  font-size: 13vw;
+  font-size: var(--main-font-size, 10.5vw);
+  line-height: 1.2;
   text-align: center;
   white-space: nowrap;
   letter-spacing: 2px;
   text-shadow: 0 0 20px var(--digit-glow, var(--glow));
+}
+
+/* 可滑动调时的分段（页面自绘，替代组件显示） */
+.edit-time {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  font-size: var(--main-font-size);
+  line-height: 1.2;
+  color: var(--digit-color);
+  text-shadow: 0 0 20px var(--digit-glow);
+  white-space: nowrap;
+}
+.edit-seg {
+  display: inline-block;
+  min-width: 1.2em;
+  text-align: center;
+}
+.edit-colon,
+.edit-frac {
+  display: inline-block;
+}
+
+/* 「上下滑动调整」提示：绝对定位，不参与布局 */
+.edit-hint {
+  position: absolute;
+  top: 100%;
+  margin-top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 13px;
+  line-height: 1.3;
+  letter-spacing: 1px;
+  color: var(--dim);
+  text-shadow: none;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.edit-hint.is-faded {
+  opacity: 0;
 }
 /* 结束态：容器在页面内，动画与配色都不依赖组件内部样式 */
 .main-time.is-finished {
@@ -155,6 +215,7 @@ page {
   position: absolute;
   top: 42%;
   left: 50%;
+  z-index: 2;
   transform: translate(-50%, -50%);
   color: #ff453a;
   font-size: 28px;
@@ -171,24 +232,25 @@ page {
   position: absolute;
   right: 32px;
   left: auto;
-  bottom: 90px;
+  bottom: 84px;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .action-group.is-left {
   left: 32px;
   right: auto;
 }
 .action-btn {
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
   color: var(--fg);
   background: rgba(128, 128, 128, 0.15);
 }
@@ -198,17 +260,19 @@ page {
 
 /* ===== 6 底部工具栏 ===== */
 .toolbar {
+  position: relative;
+  z-index: 2;
   align-self: center;
   display: flex;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   padding: 12px 0 24px;
 }
 .toolbar-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4px 12px;
+  padding: 4px 10px;
   border-radius: 999px;
   background: var(--pill-bg);
 }

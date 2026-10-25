@@ -1,9 +1,11 @@
 // index.ts
 // 大屏计时器页面：只负责布局、公共样式与模式编排；计时逻辑在各自组件内。
-import { formatDurationLabel } from '../../utils/time'
+import { formatDurationLabel, pad2, splitHMS } from '../../utils/time'
 
 type Mode = 'clock' | 'stopwatch' | 'countdown' | 'pomodoro'
 type StyleKey = 'white' | 'green' | 'amber'
+type FontSizeKey = 's' | 'm' | 'l'
+type EditUnit = 'h' | 'm' | 's'
 
 interface ModeAction {
   key: string
@@ -43,12 +45,24 @@ const STYLE_LABELS: Record<StyleKey, string> = {
   amber: '琥珀',
 }
 
+const FONT_SIZE_ORDER: FontSizeKey[] = ['s', 'm', 'l']
+const FONT_SIZE_LABELS: Record<FontSizeKey, string> = {
+  s: '小',
+  m: '中',
+  l: '大',
+}
+
+// 主时间滑动调时：每滑过这么多 px 变化 1
+const EDIT_STEP_PX = 24
+const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v))
+
 const NO_CAPABILITIES: Capabilities = { toggle: false, reset: false }
 
 // 单页实例的瞬时状态（不进 data，避免无谓渲染）
 let activeMode: Mode = 'clock'
 let seeded: Record<string, boolean> = {}
 let pendingAction: ModeAction | null = null
+let editDrag: { unit: EditUnit; startY: number; steps: number } | null = null
 
 Component({
   data: {
@@ -66,6 +80,19 @@ Component({
     capabilities: NO_CAPABILITIES,
     actions: [] as ModeAction[],
 
+    // 全局设置：主时间字号 / 是否显示百分秒
+    fontSize: 'm' as FontSizeKey,
+    fontSizeLabel: FONT_SIZE_LABELS.m,
+    showCentis: true,
+
+    // 倒计时 / 番茄未开始时的「主时间滑动调时」
+    editable: false,
+    editKey: '',
+    editH: '00',
+    editM: '00',
+    editS: '00',
+    editTouched: false,
+
     // 操作组贴边方向（全局设置，默认右侧）
     actionSide: 'right' as 'left' | 'right',
 
@@ -81,6 +108,7 @@ Component({
     attached() {
       seeded = {}
       pendingAction = null
+      editDrag = null
       activeMode = this.data.mode
       this._loadPersisted()
     },
@@ -113,6 +141,7 @@ Component({
 
       activeMode = mode
       pendingAction = null
+      editDrag = null
       this.setData({
         mode,
         subTime: '',
@@ -121,6 +150,9 @@ Component({
         capabilities: NO_CAPABILITIES,
         actions: [],
         durationTarget: '',
+        editable: false,
+        editKey: '',
+        editTouched: false,
       })
 
       const next = this.selectComponent(MODE_COMPONENTS[mode])
@@ -142,7 +174,7 @@ Component({
         wx.setKeepScreenOn({ keepScreenOn: !!detail.running })
       }
 
-      this.setData({
+      const updates: any = {
         running: !!detail.running,
         finished: !!detail.finished,
         subTime: detail.subTime || '',
@@ -151,7 +183,29 @@ Component({
           ...a,
           value: formatDurationLabel(a.valueMs),
         })),
-      })
+      }
+
+      // 倒计时 / 番茄「未开始」时，主时间切换为页面自绘的可滑动分段
+      const editable = (mode === 'countdown' || mode === 'pomodoro') && !!detail.editable
+      if (editable) {
+        const editKey = detail.editKey || ''
+        const entering = !this.data.editable || editKey !== this.data.editKey
+        updates.editable = true
+        updates.editKey = editKey
+        if (entering) updates.editTouched = false
+        // 拖动过程中组件会回传新值，此时不要覆盖页面正在编辑的分段
+        if (entering || !editDrag) {
+          const t = splitHMS(Number(detail.editValueMs) || 0)
+          updates.editH = pad2(t.h)
+          updates.editM = pad2(t.m)
+          updates.editS = pad2(t.s)
+        }
+      } else {
+        updates.editable = false
+        updates.editKey = ''
+      }
+
+      this.setData(updates)
     },
 
     /** 首次拿到某模式的按钮描述时回填一次存储；返回 true 表示正在等待组件的第二次上报 */
@@ -232,6 +286,75 @@ Component({
       this.setData({ durationTarget: '' })
     },
 
+    // ===== 主时间滑动调时（倒计时 / 番茄，仅未开始） =====
+    onEditTouchStart(e: any) {
+      const unit = e.currentTarget.dataset.unit as EditUnit
+      const touch = e.touches && e.touches[0]
+      if (!unit || !touch) return
+      editDrag = { unit, startY: touch.clientY, steps: 0 }
+    },
+    onEditTouchMove(e: any) {
+      if (!editDrag) return
+      const touch = e.touches && e.touches[0]
+      if (!touch) return
+      const steps = Math.trunc((editDrag.startY - touch.clientY) / EDIT_STEP_PX)
+      if (steps === editDrag.steps) return
+      const delta = steps - editDrag.steps
+      editDrag.steps = steps
+      this._applyEditDelta(editDrag.unit, delta)
+    },
+    onEditTouchEnd() {
+      if (editDrag && editDrag.steps !== 0) {
+        const action = (this.data.actions as ModeAction[]).find(a => a.key === this.data.editKey)
+        if (action) {
+          wx.setStorageSync(action.storageKey, this._currentEditMs())
+          this.setData({ editTouched: true })
+        }
+      }
+      editDrag = null
+    },
+    _currentEditMs(): number {
+      const h = Number(this.data.editH) || 0
+      const m = Number(this.data.editM) || 0
+      const s = Number(this.data.editS) || 0
+      return ((h * 60 + m) * 60 + s) * 1000
+    },
+    _applyEditDelta(unit: EditUnit, delta: number) {
+      const action = (this.data.actions as ModeAction[]).find(a => a.key === this.data.editKey)
+      if (!action) return
+
+      let h = Number(this.data.editH) || 0
+      let m = Number(this.data.editM) || 0
+      let s = Number(this.data.editS) || 0
+      if (unit === 'h') h = clamp(h + delta, 0, 99)
+      else if (unit === 'm') m = clamp(m + delta, 0, 59)
+      else s = clamp(s + delta, 0, 59)
+
+      const ms = Math.max(action.minMs, ((h * 60 + m) * 60 + s) * 1000)
+      const t = splitHMS(ms)
+      this.setData({
+        editH: pad2(t.h),
+        editM: pad2(t.m),
+        editS: pad2(t.s),
+      })
+
+      const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
+      if (comp) comp.setDuration(action.key, ms)
+    },
+
+    // ===== 全局设置：字号 / 显示精度 =====
+    onCycleFontSize() {
+      const current = FONT_SIZE_ORDER.indexOf(this.data.fontSize)
+      const fontSize = FONT_SIZE_ORDER[(current + 1) % FONT_SIZE_ORDER.length]
+      this.setData({ fontSize, fontSizeLabel: FONT_SIZE_LABELS[fontSize] })
+      wx.setStorageSync('timer.fontSize', fontSize)
+    },
+    onTogglePrecision() {
+      const showCentis = !this.data.showCentis
+      this.setData({ showCentis })
+      wx.setStorageSync('timer.showCentis', showCentis)
+    },
+
     // ===== 样式 / 主题 =====
     onCycleStyle() {
       const current = STYLE_ORDER.indexOf(this.data.style)
@@ -258,11 +381,13 @@ Component({
     },
     noop() {},
 
-    // ===== 持久化（仅主题 / 样式；时长由各按钮的 storageKey 负责） =====
+    // ===== 持久化（主题 / 样式 / 字号 / 精度；时长由各按钮的 storageKey 负责） =====
     _loadPersisted() {
       const theme = wx.getStorageSync('timer.theme')
       const style = wx.getStorageSync('timer.style')
       const actionSide = wx.getStorageSync('timer.actionSide')
+      const fontSize = wx.getStorageSync('timer.fontSize')
+      const showCentis = wx.getStorageSync('timer.showCentis')
       const updates: any = {}
       if (theme === 'light' || theme === 'dark') updates.theme = theme
       if (style === 'white' || style === 'green' || style === 'amber') {
@@ -270,6 +395,11 @@ Component({
         updates.styleLabel = STYLE_LABELS[style as StyleKey]
       }
       if (actionSide === 'left' || actionSide === 'right') updates.actionSide = actionSide
+      if (fontSize === 's' || fontSize === 'm' || fontSize === 'l') {
+        updates.fontSize = fontSize
+        updates.fontSizeLabel = FONT_SIZE_LABELS[fontSize as FontSizeKey]
+      }
+      if (typeof showCentis === 'boolean') updates.showCentis = showCentis
       if (Object.keys(updates).length) this.setData(updates)
     },
   },
