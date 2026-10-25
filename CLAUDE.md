@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 协作规则（必须遵守）
+
+1. **不自动提交 git**：修改完代码后，不要执行 `git add` / `git commit` / `git push`。改动由用户检查后，等用户手动提醒再提交。
+2. **任务完成后必须总结**：每个任务执行完成后，输出一段简明总结，说明本次执行了哪些内容（改了哪些文件、做了什么改动、有什么影响/待确认项），方便用户快速了解刚才的工作。
+
 ## 项目概览
 
 微信小程序（WeChat Mini Program），基于官方 `miniprogram-ts-sass-quickstart` 模板。AppID 为 `wxb9b5e92d50d80b7f`。技术栈：TypeScript + Sass，渲染器为 Skyline，组件框架为 `glass-easel`，自定义导航栏（WeUI 风格）。
