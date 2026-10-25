@@ -1,11 +1,19 @@
 // index.ts
 // 大屏计时器页面：只负责布局、公共样式与模式编排；计时逻辑在各自组件内。
-import { formatDurationLabel, pad2, splitHMS } from '../../utils/time'
+import { formatDurationLabel, formatLapTime, pad2, splitHMS } from '../../utils/time'
 
 type Mode = 'clock' | 'stopwatch' | 'countdown' | 'pomodoro'
 type StyleKey = 'white' | 'green' | 'amber'
 type FontSizeKey = 's' | 'm' | 'l'
 type EditUnit = 'h' | 'm' | 's'
+
+type EndAlert = 'vibrate' | 'sound' | 'both'
+
+interface Lap {
+  index: number
+  cumulativeMs: number
+  splitMs: number
+}
 
 interface ModeAction {
   key: string
@@ -58,11 +66,20 @@ const clamp = (v: number, min: number, max: number): number => Math.min(max, Mat
 
 const NO_CAPABILITIES: Capabilities = { toggle: false, reset: false }
 
+const END_ALERT_ORDER: EndAlert[] = ['vibrate', 'sound', 'both']
+const END_ALERT_LABELS: Record<EndAlert, string> = {
+  vibrate: '振动',
+  sound: '提示音',
+  both: '振动+提示音',
+}
+
 // 单页实例的瞬时状态（不进 data，避免无谓渲染）
 let activeMode: Mode = 'clock'
 let seeded: Record<string, boolean> = {}
 let pendingAction: ModeAction | null = null
 let editDrag: { unit: EditUnit; startY: number; steps: number } | null = null
+let beepAudio: WechatMiniprogram.InnerAudioContext | null = null
+let seededAlarm = false
 
 Component({
   data: {
@@ -96,6 +113,23 @@ Component({
     // 操作组贴边方向（全局设置，默认右侧）
     actionSide: 'right' as 'left' | 'right',
 
+    // 结束提醒三态（全局设置）
+    endAlert: 'both' as EndAlert,
+    endAlertLabel: END_ALERT_LABELS.both,
+
+    // 时钟闹钟（由组件上报，页面负责渲染与持久化）
+    alarmOn: false,
+    alarmText: '',
+    alarmPanelVisible: false,
+    alarmH: 0,
+    alarmM: 0,
+
+    // 正计时计次（由组件上报，页面负责渲染）
+    laps: [] as { index: number; cumulativeText: string; splitText: string }[],
+    lapPreview: [] as { index: number; cumulativeText: string }[],
+    lapMore: false,
+    lapPanelVisible: false,
+
     // 时长设置弹层（组件只给参数，弹层由页面统一渲染）
     durationTarget: '',
     durationTitle: '',
@@ -107,6 +141,7 @@ Component({
   lifetimes: {
     attached() {
       seeded = {}
+      seededAlarm = false
       pendingAction = null
       editDrag = null
       activeMode = this.data.mode
@@ -140,6 +175,7 @@ Component({
       if (prev) prev.deactivate()
 
       activeMode = mode
+      seededAlarm = false
       pendingAction = null
       editDrag = null
       this.setData({
@@ -153,6 +189,12 @@ Component({
         editable: false,
         editKey: '',
         editTouched: false,
+        alarmOn: false,
+        alarmText: '',
+        laps: [],
+        lapPreview: [],
+        lapMore: false,
+        lapPanelVisible: false,
       })
 
       const next = this.selectComponent(MODE_COMPONENTS[mode])
@@ -166,10 +208,25 @@ Component({
 
       // 每个模式第一次上报时，用已保存的时长回填（组件本身不碰存储）
       if (!seeded[mode] && this._seedMode(mode, detail.actions || [])) return
+
+      // 时钟闹钟：首次进入时用存储回填一次（组件未就绪则下次 statechange 重试）
+      if (mode === 'clock' && !seededAlarm) {
+        const stored = wx.getStorageSync('timer.alarm')
+        if (stored && stored.on) {
+          const comp = this.selectComponent(MODE_COMPONENTS.clock)
+          if (comp) {
+            seededAlarm = true
+            comp.setAlarm(stored.hour, stored.minute)
+          }
+        } else {
+          seededAlarm = true
+        }
+      }
+
       if (mode !== activeMode) return
 
-      // 结束提醒只在「运行中 → 已结束」的上升沿触发，切到已结束的模式不会误震
-      if (this.data.running && detail.finished) wx.vibrateLong()
+      // 结束提醒只在「运行中 → 已结束」的上升沿触发，切到已结束的模式不会误报
+      if (this.data.running && detail.finished) this._playAlert()
       if (this.data.running !== !!detail.running) {
         wx.setKeepScreenOn({ keepScreenOn: !!detail.running })
       }
@@ -181,8 +238,27 @@ Component({
         capabilities: detail.capabilities || NO_CAPABILITIES,
         actions: (detail.actions || []).map((a: ModeAction) => ({
           ...a,
-          value: formatDurationLabel(a.valueMs),
+          value: a.key === 'limit' && a.valueMs === 0 ? '不限' : formatDurationLabel(a.valueMs),
         })),
+      }
+
+      // 时钟闹钟上报
+      if (typeof detail.alarmOn === 'boolean') updates.alarmOn = detail.alarmOn
+      if (typeof detail.alarmText === 'string') updates.alarmText = detail.alarmText
+
+      // 正计时计次上报（组件只在开始/暂停/重置/计次时 emit，这里格式化开销可忽略）
+      if (Array.isArray(detail.laps)) {
+        const formatted = (detail.laps as Lap[]).map(l => ({
+          index: l.index,
+          cumulativeText: formatLapTime(l.cumulativeMs),
+          splitText: formatLapTime(l.splitMs),
+        }))
+        updates.laps = formatted
+        updates.lapPreview = formatted.slice(-2).map(f => ({
+          index: f.index,
+          cumulativeText: f.cumulativeText,
+        }))
+        updates.lapMore = formatted.length > 2
       }
 
       // 倒计时 / 番茄「未开始」时，主时间切换为页面自绘的可滑动分段
@@ -259,6 +335,55 @@ Component({
         durS: totalSec % 60,
       })
     },
+    // ===== 闹钟 =====
+    onAlarmTap() {
+      const stored = wx.getStorageSync('timer.alarm')
+      if (stored && stored.on) {
+        this.setData({ alarmPanelVisible: true, alarmH: stored.hour, alarmM: stored.minute })
+      } else {
+        const now = new Date()
+        this.setData({ alarmPanelVisible: true, alarmH: now.getHours(), alarmM: now.getMinutes() })
+      }
+    },
+    closeAlarmPanel() {
+      this.setData({ alarmPanelVisible: false })
+    },
+    onAlarmHInput(e: any) {
+      this.setData({ alarmH: clamp(Number(e.detail.value) || 0, 0, 23) })
+    },
+    onAlarmMInput(e: any) {
+      this.setData({ alarmM: clamp(Number(e.detail.value) || 0, 0, 59) })
+    },
+    applyAlarm() {
+      const comp = this.selectComponent(MODE_COMPONENTS.clock)
+      if (comp) comp.setAlarm(this.data.alarmH, this.data.alarmM)
+      wx.setStorageSync('timer.alarm', { on: true, hour: this.data.alarmH, minute: this.data.alarmM })
+      this.setData({ alarmPanelVisible: false })
+    },
+    clearAlarm() {
+      const comp = this.selectComponent(MODE_COMPONENTS.clock)
+      if (comp) comp.clearAlarm()
+      wx.setStorageSync('timer.alarm', { on: false })
+      this.setData({ alarmPanelVisible: false, alarmOn: false, alarmText: '' })
+    },
+    onAlarmFire() {
+      this._playAlert()
+      wx.setStorageSync('timer.alarm', { on: false })
+      this.setData({ alarmOn: false, alarmText: '' })
+    },
+
+    // ===== 正计时计次 =====
+    onLap() {
+      const comp = this.selectComponent(MODE_COMPONENTS.stopwatch)
+      if (comp) comp.lap()
+    },
+    openLapPanel() {
+      this.setData({ lapPanelVisible: true })
+    },
+    closeLapPanel() {
+      this.setData({ lapPanelVisible: false })
+    },
+
     closeDurationPanel() {
       pendingAction = null
       this.setData({ durationTarget: '' })
@@ -354,6 +479,26 @@ Component({
       this.setData({ showCentis })
       wx.setStorageSync('timer.showCentis', showCentis)
     },
+    onCycleEndAlert() {
+      const current = END_ALERT_ORDER.indexOf(this.data.endAlert)
+      const endAlert = END_ALERT_ORDER[(current + 1) % END_ALERT_ORDER.length]
+      this.setData({ endAlert, endAlertLabel: END_ALERT_LABELS[endAlert] })
+      wx.setStorageSync('timer.endAlert', endAlert)
+    },
+
+    // ===== 结束 / 闹钟提醒：按三态设置执行 =====
+    _playAlert() {
+      if (this.data.endAlert === 'vibrate' || this.data.endAlert === 'both') wx.vibrateLong()
+      if (this.data.endAlert === 'sound' || this.data.endAlert === 'both') this._playSound()
+    },
+    _playSound() {
+      if (!beepAudio) {
+        beepAudio = wx.createInnerAudioContext()
+        beepAudio.src = '/assets/beep.wav'
+      }
+      beepAudio.stop()
+      beepAudio.play()
+    },
 
     // ===== 样式 / 主题 =====
     onCycleStyle() {
@@ -400,6 +545,11 @@ Component({
         updates.fontSizeLabel = FONT_SIZE_LABELS[fontSize as FontSizeKey]
       }
       if (typeof showCentis === 'boolean') updates.showCentis = showCentis
+      const endAlert = wx.getStorageSync('timer.endAlert')
+      if (endAlert === 'vibrate' || endAlert === 'sound' || endAlert === 'both') {
+        updates.endAlert = endAlert
+        updates.endAlertLabel = END_ALERT_LABELS[endAlert as EndAlert]
+      }
       if (Object.keys(updates).length) this.setData(updates)
     },
   },

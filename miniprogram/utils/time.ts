@@ -45,3 +45,20 @@ export const formatDurationLabel = (ms: number): string => {
   const s = totalSec % 60
   return h > 0 ? `${h}:${pad2(m)}:${pad2(s)}` : `${pad2(m)}:${pad2(s)}`
 }
+
+/** Date → HH:MM:SS.xx（xx 为百分秒） */
+export const formatClockHMSxx = (d: Date): string => {
+  const cs = Math.floor(d.getMilliseconds() / 10)
+  return `${formatClockHMS(d)}.${pad2(cs)}`
+}
+
+/** 毫秒 → MM:SS.xx（满 1 小时 → H:MM:SS.xx），用于计次列表 */
+export const formatLapTime = (ms: number): string => {
+  const totalMs = Math.max(0, ms)
+  const h = Math.floor(totalMs / 3600000)
+  const m = Math.floor((totalMs % 3600000) / 60000)
+  const s = Math.floor((totalMs % 60000) / 1000)
+  const cs = Math.floor((totalMs % 1000) / 10)
+  const hms = h > 0 ? `${pad2(h)}:${pad2(m)}:${pad2(s)}` : `${pad2(m)}:${pad2(s)}`
+  return `${hms}.${pad2(cs)}`
+}

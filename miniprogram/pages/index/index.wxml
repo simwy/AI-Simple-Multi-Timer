@@ -31,8 +31,18 @@
       </view>
       <view class="edit-hint {{editTouched ? 'is-faded' : ''}}" wx:if="{{editable}}">上下滑动调整</view>
 
+      <!-- 时钟闹钟提示：与「上下滑动调整」同款样式，绝对定位不参与布局 -->
+      <view class="alarm-hint" wx:if="{{mode === 'clock' && alarmOn && !focusMode}}">闹钟 {{alarmText}}</view>
+
+      <!-- 正计时计次预览：最多最近 2 行，超出显示 More -->
+      <view class="lap-preview" wx:if="{{mode === 'stopwatch' && lapPreview.length && !focusMode}}" catchtap="noop">
+        <view class="lap-line" wx:for="{{lapPreview}}" wx:key="index">第{{item.index}}次　{{item.cumulativeText}}</view>
+        <text class="lap-more" wx:if="{{lapMore}}" catchtap="openLapPanel">More</text>
+      </view>
+
       <clock-timer id="clock-timer" class="mode-host {{mode === 'clock' ? '' : 'hidden'}}"
-                   data-mode="clock" bind:statechange="onStateChange" />
+                   data-mode="clock" show-centis="{{showCentis}}"
+                   bind:statechange="onStateChange" bind:alarmfire="onAlarmFire" />
       <stopwatch-timer id="stopwatch-timer" class="mode-host {{mode === 'stopwatch' ? '' : 'hidden'}}"
                        data-mode="stopwatch" show-centis="{{showCentis}}" bind:statechange="onStateChange" />
       <countdown-timer id="countdown-timer"
@@ -60,32 +70,48 @@
           wx:if="{{capabilities.toggle}}" bindtap="onStart">开始</view>
   </view>
 
-  <!-- 6 底部工具栏：前两个公共按钮 + 组件声明的模式专属按钮 -->
+  <!-- 5b 计次按钮：正计时运行中，位于操作组对侧 -->
+  <view class="lap-btn {{actionSide === 'left' ? 'is-right' : 'is-left'}}"
+        wx:if="{{!focusMode && mode === 'stopwatch' && running}}" bindtap="onLap">计次</view>
+
+  <!-- 6 底部工具栏：第一行所有模式共有，第二行模式专属 -->
   <view class="toolbar" wx:if="{{!focusMode}}" catchtap="noop">
-    <view class="toolbar-btn" bindtap="onCycleStyle">
-      <text class="toolbar-btn__desc">数字颜色</text>
-      <text class="toolbar-btn__value">{{styleLabel}}</text>
+    <view class="toolbar-row toolbar-row--common">
+      <view class="toolbar-btn" bindtap="onCycleStyle">
+        <text class="toolbar-btn__desc">数字颜色</text>
+        <text class="toolbar-btn__value">{{styleLabel}}</text>
+      </view>
+      <view class="toolbar-btn" bindtap="onToggleTheme">
+        <text class="toolbar-btn__desc">背景颜色</text>
+        <text class="toolbar-btn__value">{{theme === 'dark' ? '深色' : '浅色'}}</text>
+      </view>
+      <view class="toolbar-btn" bindtap="onCycleFontSize">
+        <text class="toolbar-btn__desc">字号</text>
+        <text class="toolbar-btn__value">{{fontSizeLabel}}</text>
+      </view>
+      <view class="toolbar-btn" bindtap="onTogglePrecision">
+        <text class="toolbar-btn__desc">精度</text>
+        <text class="toolbar-btn__value">{{showCentis ? '高' : '低'}}</text>
+      </view>
+      <view class="toolbar-btn" bindtap="onCycleEndAlert">
+        <text class="toolbar-btn__desc">结束提醒</text>
+        <text class="toolbar-btn__value">{{endAlertLabel}}</text>
+      </view>
+      <view class="toolbar-btn" bindtap="onToggleActionSide">
+        <text class="toolbar-btn__desc">按钮位置</text>
+        <text class="toolbar-btn__value">{{actionSide === 'left' ? '左侧' : '右侧'}}</text>
+      </view>
     </view>
-    <view class="toolbar-btn" bindtap="onToggleTheme">
-      <text class="toolbar-btn__desc">背景颜色</text>
-      <text class="toolbar-btn__value">{{theme === 'dark' ? '深色' : '浅色'}}</text>
-    </view>
-    <view class="toolbar-btn" wx:if="{{capabilities.toggle || capabilities.reset}}" bindtap="onToggleActionSide">
-      <text class="toolbar-btn__desc">按钮位置</text>
-      <text class="toolbar-btn__value">{{actionSide === 'left' ? '左侧' : '右侧'}}</text>
-    </view>
-    <view class="toolbar-btn" bindtap="onCycleFontSize">
-      <text class="toolbar-btn__desc">字号</text>
-      <text class="toolbar-btn__value">{{fontSizeLabel}}</text>
-    </view>
-    <view class="toolbar-btn" bindtap="onTogglePrecision">
-      <text class="toolbar-btn__desc">精度</text>
-      <text class="toolbar-btn__value">{{showCentis ? '高' : '低'}}</text>
-    </view>
-    <view class="toolbar-btn" wx:for="{{actions}}" wx:key="key"
-          data-key="{{item.key}}" bindtap="onActionTap">
-      <text class="toolbar-btn__desc">{{item.label}}</text>
-      <text class="toolbar-btn__value">{{item.value}}</text>
+    <view class="toolbar-row toolbar-row--mode">
+      <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onAlarmTap">
+        <text class="toolbar-btn__desc">闹钟</text>
+        <text class="toolbar-btn__value">{{alarmOn ? alarmText : '关'}}</text>
+      </view>
+      <view class="toolbar-btn" wx:for="{{actions}}" wx:key="key"
+            data-key="{{item.key}}" bindtap="onActionTap">
+        <text class="toolbar-btn__desc">{{item.label}}</text>
+        <text class="toolbar-btn__value">{{item.value}}</text>
+      </view>
     </view>
   </view>
 
@@ -104,6 +130,39 @@
     <view class="panel-actions">
       <button class="panel-btn" bindtap="applyDuration">确定</button>
       <button class="panel-btn secondary" bindtap="closeDurationPanel">关闭</button>
+    </view>
+  </view>
+
+  <!-- 8 闹钟设置弹层（时 : 分） -->
+  <view class="mask" wx:if="{{alarmPanelVisible}}" catchtap="closeAlarmPanel"></view>
+  <view class="panel" wx:if="{{alarmPanelVisible}}" catchtap="noop">
+    <view class="panel-title">闹钟</view>
+    <view class="panel-label">时间（时 : 分）</view>
+    <view class="panel-row">
+      <input class="panel-input" type="number" value="{{alarmH}}" bindinput="onAlarmHInput" />
+      <text class="panel-colon">:</text>
+      <input class="panel-input" type="number" value="{{alarmM}}" bindinput="onAlarmMInput" />
+    </view>
+    <view class="panel-actions">
+      <button class="panel-btn" bindtap="applyAlarm">确定</button>
+      <button class="panel-btn secondary" wx:if="{{alarmOn}}" bindtap="clearAlarm">关闭闹钟</button>
+      <button class="panel-btn secondary" bindtap="closeAlarmPanel">取消</button>
+    </view>
+  </view>
+
+  <!-- 9 计次浮层：全部计次（累计 + 分段） -->
+  <view class="mask" wx:if="{{lapPanelVisible}}" catchtap="closeLapPanel"></view>
+  <view class="panel lap-panel" wx:if="{{lapPanelVisible}}" catchtap="noop">
+    <view class="panel-title">全部计次</view>
+    <scroll-view class="lap-list" scroll-y>
+      <view class="lap-row" wx:for="{{laps}}" wx:key="index">
+        <text class="lap-row__idx">第{{item.index}}次</text>
+        <text class="lap-row__cum">{{item.cumulativeText}}</text>
+        <text class="lap-row__split">+{{item.splitText}}</text>
+      </view>
+    </scroll-view>
+    <view class="panel-actions">
+      <button class="panel-btn secondary" bindtap="closeLapPanel">关闭</button>
     </view>
   </view>
 </view>

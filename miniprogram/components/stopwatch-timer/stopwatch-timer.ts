@@ -1,5 +1,5 @@
 // stopwatch-timer.ts
-// 正计时：从 0 开始累计，支持开始 / 暂停 / 重置。样式由页面统一下发。
+// 正计时：从 0 开始累计，支持开始 / 暂停 / 重置 / 结束上限 / 计次。样式由页面统一下发。
 import { formatHMS, formatHMSxx } from '../../utils/time'
 
 const TICK_MS = 16
@@ -7,7 +7,21 @@ const TICK_MS = 16
 let isActive = false
 let baseMs = 0
 let startAt = 0
+let limitMs = 0
+let laps: { index: number; cumulativeMs: number; splitMs: number }[] = []
 let tickTimer: ReturnType<typeof setInterval> | undefined
+
+const buildActions = () => [
+  {
+    key: 'limit',
+    label: '结束时长',
+    kind: 'duration',
+    title: '结束时长',
+    valueMs: limitMs,
+    minMs: 0,
+    storageKey: 'timer.swLimitMs',
+  },
+]
 
 Component({
   properties: {
@@ -24,6 +38,7 @@ Component({
   data: {
     display: '00:00:00.00',
     running: false,
+    finished: false,
   },
 
   lifetimes: {
@@ -31,7 +46,9 @@ Component({
       isActive = false
       baseMs = 0
       startAt = 0
-      this.setData({ display: this._fmt(0), running: false })
+      limitMs = 0
+      laps = []
+      this.setData({ display: this._fmt(0), running: false, finished: false })
       this._emitState()
     },
     detached() {
@@ -75,14 +92,32 @@ Component({
       this._stopTick()
       baseMs = 0
       startAt = 0
-      this.setData({ display: this._fmt(0), running: false })
+      laps = []
+      this.setData({ display: this._fmt(0), running: false, finished: false })
       this._emitState()
     },
-    setDuration() {},
+    /** 页面设置结束上限（0 表示不限）；重置不清除该设置 */
+    setDuration(key: string, ms: number) {
+      if (key !== 'limit') return
+      limitMs = Math.max(0, Number(ms) || 0)
+      this._emitState()
+    },
+    /** 页面「计次」按钮：记录当前累计时间与相对上一条的分段 */
+    lap() {
+      if (!this.data.running) return
+      const cumulativeMs = baseMs + (Date.now() - startAt)
+      const prev = laps.length ? laps[laps.length - 1].cumulativeMs : 0
+      laps.push({ index: laps.length + 1, cumulativeMs, splitMs: cumulativeMs - prev })
+      this._emitState()
+    },
 
     _start() {
+      if (this.data.finished) {
+        baseMs = 0
+        laps = []
+      }
       startAt = Date.now()
-      this.setData({ running: true })
+      this.setData({ running: true, finished: false })
       this._startTick()
       this._emitState()
     },
@@ -96,9 +131,18 @@ Component({
     },
 
     _tick() {
-      const display = this._fmt(baseMs + (Date.now() - startAt))
-      // 「整秒」精度下同一秒内不必重复 setData
+      const elapsed = baseMs + (Date.now() - startAt)
+      const display = this._fmt(elapsed)
       if (display !== this.data.display) this.setData({ display })
+      if (limitMs > 0 && elapsed >= limitMs) this._end()
+    },
+
+    _end() {
+      baseMs = limitMs
+      startAt = 0
+      this._stopTick()
+      this.setData({ display: this._fmt(limitMs), running: false, finished: true })
+      this._emitState()
     },
 
     /** 精度设置切换后立即重排当前显示 */
@@ -128,13 +172,14 @@ Component({
     _emitState() {
       this.triggerEvent('statechange', {
         running: this.data.running,
-        finished: false,
+        finished: this.data.finished,
         subTime: '',
         capabilities: { toggle: true, reset: true },
-        actions: [],
+        actions: buildActions(),
         editable: false,
         editKey: '',
         editValueMs: 0,
+        laps,
       })
     },
   },

@@ -197,6 +197,43 @@ page {
 .edit-hint.is-faded {
   opacity: 0;
 }
+
+/* 时钟闹钟提示：与「上下滑动调整」同款，绝对定位不参与布局 */
+.alarm-hint {
+  position: absolute;
+  top: 100%;
+  margin-top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 13px;
+  line-height: 1.3;
+  letter-spacing: 1px;
+  color: var(--dim);
+  text-shadow: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 正计时计次预览：最近 2 行 + More */
+.lap-preview {
+  position: absolute;
+  top: 100%;
+  margin-top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 13px;
+  line-height: 1.4;
+  letter-spacing: 1px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.lap-more {
+  color: var(--accent);
+}
 /* 结束态：容器在页面内，动画与配色都不依赖组件内部样式 */
 .main-time.is-finished {
   --digit-color: #ff453a;
@@ -260,15 +297,43 @@ page {
   opacity: 0.35;
 }
 
+/* ===== 5b 计次按钮（操作组对侧） ===== */
+.lap-btn {
+  position: absolute;
+  bottom: 84px;
+  z-index: 2;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--fg);
+  background: rgba(128, 128, 128, 0.32);
+}
+.lap-btn.is-left {
+  left: 32px;
+}
+.lap-btn.is-right {
+  right: 32px;
+}
+
 /* ===== 6 底部工具栏 ===== */
 .toolbar {
   position: relative;
   z-index: 2;
   align-self: center;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   gap: 6px;
   padding: 12px 0 24px;
+}
+.toolbar-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
 }
 .toolbar-btn {
   display: flex;
@@ -357,4 +422,32 @@ page {
 .panel-btn.secondary {
   background: var(--pill-bg);
   color: var(--fg);
+}
+
+/* ===== 9 计次浮层列表 ===== */
+.lap-panel {
+  width: 520px;
+}
+.lap-list {
+  max-height: 60vh;
+  margin-bottom: 20px;
+}
+.lap-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 12px;
+  font-size: 20px;
+}
+.lap-row__idx {
+  color: var(--dim);
+  min-width: 88px;
+}
+.lap-row__cum {
+  font-family: 'TimerDigits', "SF Mono", Menlo, Consolas, monospace;
+  min-width: 120px;
+}
+.lap-row__split {
+  font-family: 'TimerDigits', "SF Mono", Menlo, Consolas, monospace;
+  color: var(--accent);
 }
