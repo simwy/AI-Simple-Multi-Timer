@@ -1,17 +1,19 @@
 // clock-timer.ts
-// 时钟模式：主时间显示当前时间，子时间显示日期；支持高精度（百分秒）与一次性闹钟。
+// 时钟模式：主时间显示当前时间，子时间显示日期（12 小时制时追加上午/下午）；支持高精度、一次性闹钟与计次。
 // 样式由页面统一下发，闹钟运行时在组件内，振动/提示音与持久化由页面负责。
-import { formatClockHMS, formatClockHMSxx, formatDateCN, pad2 } from '../../utils/time'
+import { formatDateCN, formatClock, meridiemOf, pad2 } from '../../utils/time'
 
 const TICK_MS_HI = 16
 const TICK_MS_LO = 250
 
 let isActive = false
 let dateStr = ''
+let meridiem = ''
 let alarmOn = false
 let alarmHour = 0
 let alarmMinute = 0
 let alarmFired = false
+let laps: { index: number; cumulativeMs: number; splitMs: number }[] = []
 let tickTimer: ReturnType<typeof setInterval> | undefined
 
 Component({
@@ -20,9 +22,27 @@ Component({
     showCentis: {
       type: Boolean,
       value: true,
-      observer(this: any, value: boolean) {
-        this._refreshDisplay(value)
-        if (isActive) this._startTick(value)
+      observer(this: any) {
+        this._refreshDisplay()
+        if (isActive) this._startTick()
+      },
+    },
+    // 由页面下发：是否显示秒（关闭后同时隐藏百分秒）
+    showSeconds: {
+      type: Boolean,
+      value: true,
+      observer(this: any) {
+        this._refreshDisplay()
+        if (isActive) this._startTick()
+      },
+    },
+    // 由页面下发：是否 24 小时制（否则 12 小时制）
+    clock24h: {
+      type: Boolean,
+      value: true,
+      observer(this: any) {
+        this._render()
+        this._emitState()
       },
     },
   },
@@ -36,6 +56,8 @@ Component({
       isActive = false
       alarmOn = false
       alarmFired = false
+      laps = []
+      meridiem = ''
       this._render()
       this._emitState()
     },
@@ -87,9 +109,24 @@ Component({
       this._emitState()
     },
 
+    /** 页面「计次」按钮：记录当前时刻 */
+    lap() {
+      const now = new Date()
+      const msOfDay =
+        ((now.getHours() * 60 + now.getMinutes()) * 60 + now.getSeconds()) * 1000
+      laps.push({ index: laps.length + 1, cumulativeMs: msOfDay, splitMs: 0 })
+      this._emitState()
+    },
+    /** 页面「清空」按钮：清空计次 */
+    clearLaps() {
+      laps = []
+      this._emitState()
+    },
+
     _render() {
       const now = new Date()
       dateStr = formatDateCN(now)
+      meridiem = this.data.clock24h ? '' : meridiemOf(now)
       this.setData({ display: this._fmt(now) })
       this._checkAlarm(now)
     },
@@ -99,21 +136,25 @@ Component({
       const display = this._fmt(now)
       if (display !== this.data.display) this.setData({ display })
       const nextDate = formatDateCN(now)
-      if (nextDate !== dateStr) {
+      const nextMeridiem = this.data.clock24h ? '' : meridiemOf(now)
+      if (nextDate !== dateStr || nextMeridiem !== meridiem) {
         dateStr = nextDate
+        meridiem = nextMeridiem
         this._emitState()
       }
       this._checkAlarm(now)
     },
 
     _fmt(d: Date): string {
-      return this.data.showCentis ? formatClockHMSxx(d) : formatClockHMS(d)
+      return formatClock(d, !this.data.clock24h, this.data.showSeconds, this.data.showCentis)
     },
 
-    _refreshDisplay(showCentis?: boolean) {
-      const now = new Date()
-      const withCentis = typeof showCentis === 'boolean' ? showCentis : this.data.showCentis
-      this.setData({ display: withCentis ? formatClockHMSxx(now) : formatClockHMS(now) })
+    _refreshDisplay() {
+      this.setData({ display: this._fmt(new Date()) })
+    },
+
+    _subTime(): string {
+      return dateStr + (meridiem ? `  ${meridiem}` : '')
     },
 
     /** 一次性闹钟：仅当天，当前时:分命中即触发并自动关闭 */
@@ -127,10 +168,9 @@ Component({
       }
     },
 
-    _startTick(showCentis?: boolean) {
+    _startTick() {
       this._stopTick()
-      const withCentis = typeof showCentis === 'boolean' ? showCentis : this.data.showCentis
-      const ms = withCentis ? TICK_MS_HI : TICK_MS_LO
+      const ms = this.data.showCentis && this.data.showSeconds ? TICK_MS_HI : TICK_MS_LO
       tickTimer = setInterval(() => this._tick(), ms)
     },
 
@@ -146,7 +186,7 @@ Component({
         running: false,
         finished: false,
         started: false,
-        subTime: dateStr,
+        subTime: this._subTime(),
         capabilities: { toggle: false, reset: false },
         actions: [],
         editable: false,
@@ -154,6 +194,7 @@ Component({
         editValueMs: 0,
         alarmOn,
         alarmText: alarmOn ? `${pad2(alarmHour)}:${pad2(alarmMinute)}` : '',
+        laps,
       })
     },
   },

@@ -28,6 +28,8 @@ page {
   --reset-fg: #ffffff;
   --panel-bg: #1a1a1c;
   --glow: rgba(52, 208, 88, 0.24);
+  /* 主时间与操作组的整体上移量 */
+  --stage-lift: 18px;
 
   background: var(--bg);
   color: var(--fg);
@@ -146,18 +148,21 @@ page {
   padding-right: env(safe-area-inset-right);
   box-sizing: border-box;
   overflow: hidden;
+  /* 主时间整组上移，操作组 / 计次按钮以同一变量同步上移 */
+  transform: translateY(calc(0px - var(--stage-lift)));
 }
 
 /* 子时间区（固定高度，切换模式不跳动） */
 .sub-time {
   height: 34px;
-  line-height: 34px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--dim);
-  font-size: 22px;
+  font-size: 18px;
   letter-spacing: 2px;
   /* 视觉下移一点，不改变布局，主时间仍保持精确居中 */
-  transform: translateY(4px);
+  transform: translateY(10px);
 }
 
 /* 番茄阶段徽标：工作绿 / 休息青蓝，一眼可辨 */
@@ -167,8 +172,8 @@ page {
   gap: 6px;
   padding: 3px 12px;
   border-radius: 999px;
-  font-size: 17px;
-  line-height: 24px;
+  font-size: 18px;
+  line-height: 26px;
   letter-spacing: 1px;
   border: 1px solid transparent;
 }
@@ -364,7 +369,7 @@ page {
 .edit-hint {
   position: absolute;
   top: 100%;
-  margin-top: 2px;
+  margin-top: -4px;
   left: 50%;
   transform: translateX(-50%);
   font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
@@ -486,7 +491,7 @@ page {
   position: absolute;
   right: 32px;
   left: auto;
-  bottom: 84px;
+  bottom: calc(84px + var(--stage-lift));
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -516,7 +521,7 @@ page {
 /* ===== 5b 计次按钮（操作组对侧） ===== */
 .lap-btn {
   position: absolute;
-  bottom: 84px;
+  bottom: calc(84px + var(--stage-lift));
   z-index: 2;
   width: 52px;
   height: 52px;
@@ -587,44 +592,44 @@ page {
   top: 50%;
   transform: translate(-50%, -50%);
   background: var(--panel-bg);
-  border-radius: 20px;
-  padding: 28px;
-  width: 460px;
+  border-radius: 16px;
+  padding: 22px;
+  width: 440px;
   z-index: 11;
   color: var(--fg);
 }
 .panel-title {
-  font-size: 28px;
-  margin-bottom: 16px;
+  font-size: 20px;
+  margin-bottom: 12px;
 }
 .panel-label {
-  font-size: 20px;
+  font-size: 15px;
   color: var(--dim);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .panel-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  margin-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 .panel-input {
-  width: 96px;
+  width: 72px;
   text-align: center;
   background: var(--pill-bg);
   color: var(--fg);
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 6px 0;
-  font-size: 26px;
+  font-size: 20px;
 }
 .panel-colon {
-  font-size: 26px;
+  font-size: 20px;
   color: var(--dim);
 }
 .panel-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
 }
 .panel-btn {
   flex: 1;
@@ -632,8 +637,8 @@ page {
   border-radius: 999px;
   background: var(--accent);
   color: #fff;
-  font-size: 24px;
-  line-height: 2.4;
+  font-size: 16px;
+  line-height: 1.6;
 }
 .panel-btn.secondary {
   background: var(--pill-bg);
@@ -647,7 +652,7 @@ page {
   padding: 22px;
 }
 .contact-panel .panel-title {
-  font-size: 24px;
+  font-size: 20px;
   margin-bottom: 12px;
 }
 .contact-body {
@@ -662,10 +667,10 @@ page {
   flex-direction: column;
 }
 .contact-tip {
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1.4;
   color: var(--dim);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 .contact-id {
   display: block;
@@ -675,7 +680,7 @@ page {
   background: var(--pill-bg);
   color: var(--fg);
   font-family: "SF Mono", Menlo, Consolas, monospace;
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1.3;
   letter-spacing: 1px;
   text-align: center;
@@ -684,14 +689,14 @@ page {
   gap: 10px;
 }
 .contact-panel .panel-btn {
-  font-size: 20px;
-  line-height: 2.2;
+  font-size: 16px;
+  line-height: 1.6;
 }
 .contact-qr {
   display: block;
   flex: none;
-  width: 150px;
-  height: 150px;
+  width: 140px;
+  height: auto;
   margin: 0;
   border-radius: 10px;
   background: #ffffff;
@@ -708,17 +713,17 @@ page {
 .lap-row {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 8px 12px;
-  font-size: 20px;
+  gap: 16px;
+  padding: 6px 12px;
+  font-size: 16px;
 }
 .lap-row__idx {
   color: var(--dim);
-  min-width: 88px;
+  min-width: 64px;
 }
 .lap-row__cum {
   font-family: 'TimerDigits', "SF Mono", Menlo, Consolas, monospace;
-  min-width: 120px;
+  min-width: 96px;
 }
 .lap-row__split {
   font-family: 'TimerDigits', "SF Mono", Menlo, Consolas, monospace;

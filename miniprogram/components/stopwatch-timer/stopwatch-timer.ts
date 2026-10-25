@@ -1,6 +1,6 @@
 // stopwatch-timer.ts
 // 正计时：从 0 开始累计，支持开始 / 暂停 / 重置 / 结束上限 / 计次。样式由页面统一下发。
-import { formatHMS, formatHMSxx } from '../../utils/time'
+import { formatHMS, formatHMSxx, formatDateMinuteCN } from '../../utils/time'
 
 const TICK_MS = 16
 
@@ -10,6 +10,7 @@ let baseMs = 0
 let startAt = 0
 let limitMs = 0
 let laps: { index: number; cumulativeMs: number; splitMs: number }[] = []
+let subTime = ''
 let tickTimer: ReturnType<typeof setInterval> | undefined
 
 const buildActions = () => [
@@ -50,6 +51,7 @@ Component({
       startAt = 0
       limitMs = 0
       laps = []
+      subTime = ''
       this.setData({ display: this._fmt(0), running: false, finished: false })
       this._emitState()
     },
@@ -139,6 +141,11 @@ Component({
       const display = this._fmt(elapsed)
       if (display !== this.data.display) this.setData({ display })
       if (limitMs > 0 && elapsed >= limitMs) this._end()
+      const st = formatDateMinuteCN(new Date())
+      if (st !== subTime) {
+        subTime = st
+        this._emitState()
+      }
     },
 
     _end() {
@@ -174,11 +181,13 @@ Component({
     },
 
     _emitState() {
+      const st = formatDateMinuteCN(new Date())
+      subTime = st
       this.triggerEvent('statechange', {
         running: this.data.running,
         finished: this.data.finished,
         started,
-        subTime: '',
+        subTime: st,
         capabilities: { toggle: true, reset: true },
         actions: buildActions(),
         editable: false,

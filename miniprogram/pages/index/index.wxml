@@ -1,5 +1,5 @@
 <!--index.wxml-->
-<view class="page theme-{{theme}}" bindtap="onToggleFocus">
+<view class="page theme-{{theme}}" bindtap="onPageTap">
 
   <!-- 全屏氛围光：仅番茄休息阶段淡入 -->
   <view class="ambient {{mode === 'pomodoro' && pomodoroPhase === 'rest' ? 'is-on' : ''}}"></view>
@@ -11,7 +11,7 @@
   </view>
 
   <!-- 1 顶部模式栏 -->
-  <view class="mode-bar" wx:if="{{!focusMode}}" catchtap="noop">
+  <view class="mode-bar" wx:if="{{!focusMode}}" catchtap="onUIAreaTap">
     <view wx:for="{{modes}}" wx:key="key" class="mode-tab {{mode === item.key ? 'active' : ''}}"
           data-mode="{{item.key}}" bindtap="onSwitchMode">{{item.label}}</view>
   </view>
@@ -19,7 +19,7 @@
   <!-- 2/3 子时间 + 主时间：作为一组垂直居中，间距固定 -->
   <view class="stage">
     <!-- 子时间区：固定占位，空字符串也保留高度 -->
-    <view class="sub-time">
+    <view class="sub-time" wx:if="{{showSubTime}}">
       <view class="phase-badge phase-{{pomodoroPhase}}" wx:if="{{mode === 'pomodoro'}}">
         <view class="phase-dot"></view>
         <text>{{subTime}}</text>
@@ -49,14 +49,15 @@
       <!-- 时钟闹钟提示：与「上下滑动调整」同款样式，绝对定位不参与布局 -->
       <view class="alarm-hint" wx:if="{{mode === 'clock' && alarmOn && !focusMode}}">闹钟 {{alarmText}}</view>
 
-      <!-- 正计时计次预览：最多最近 2 行，超出显示 More -->
-      <view class="lap-preview" wx:if="{{mode === 'stopwatch' && lapPreview.length && !focusMode}}" catchtap="noop">
+      <!-- 正计时 / 时钟计次预览：最多最近 2 行，超出显示 More -->
+      <view class="lap-preview" wx:if="{{(mode === 'stopwatch' || mode === 'clock') && lapPreview.length && !focusMode}}" catchtap="onUIAreaTap">
         <view class="lap-line" wx:for="{{lapPreview}}" wx:key="index">第{{item.index}}次　{{item.cumulativeText}}</view>
         <text class="lap-more" wx:if="{{lapMore}}" catchtap="openLapPanel">More</text>
       </view>
 
       <clock-timer id="clock-timer" class="mode-host {{mode === 'clock' ? '' : 'hidden'}}"
                    data-mode="clock" show-centis="{{showCentis}}"
+                   show-seconds="{{clockShowSeconds}}" clock-24h="{{clock24h}}"
                    bind:statechange="onStateChange" bind:alarmfire="onAlarmFire" />
       <stopwatch-timer id="stopwatch-timer" class="mode-host {{mode === 'stopwatch' ? '' : 'hidden'}}"
                        data-mode="stopwatch" show-centis="{{showCentis}}" bind:statechange="onStateChange" />
@@ -74,7 +75,7 @@
     </view>
 
     <!-- 与子时间等高的空占位，让主时间成为整组的垂直中心 -->
-    <view class="stage-balancer"></view>
+    <view class="stage-balancer" wx:if="{{showSubTime}}"></view>
   </view>
 
   <!-- 4 结束提示 -->
@@ -82,7 +83,7 @@
 
   <!-- 5 主操作组：重置 / 暂停 / 开始，贴边方向由 actionSide 决定 -->
   <view class="action-group {{actionSide === 'left' ? 'is-left' : ''}}"
-        wx:if="{{!focusMode && (capabilities.toggle || capabilities.reset)}}" catchtap="noop">
+        wx:if="{{!focusMode && (capabilities.toggle || capabilities.reset)}}" catchtap="onUIAreaTap">
     <view class="action-btn action-reset" wx:if="{{capabilities.reset}}" bindtap="onReset">重置</view>
     <view class="action-btn action-pause {{(!running || (mode === 'pomodoro' && finished)) ? 'is-disabled' : ''}}"
           wx:if="{{capabilities.toggle}}" bindtap="onPause">暂停</view>
@@ -90,20 +91,20 @@
           wx:if="{{capabilities.toggle}}" bindtap="onStart">{{startLabel}}</view>
   </view>
 
-  <!-- 5b 计次按钮：正计时运行中，位于操作组对侧 -->
+  <!-- 5b 计次按钮：正计时运行中，或时钟模式；位于操作组对侧 -->
   <view class="lap-btn {{actionSide === 'left' ? 'is-right' : 'is-left'}}"
-        wx:if="{{!focusMode && mode === 'stopwatch' && running}}" bindtap="onLap">计次</view>
+        wx:if="{{!focusMode && ((mode === 'stopwatch' && running) || mode === 'clock')}}" bindtap="onLap">计次</view>
 
   <!-- 6 底部工具栏：第一行所有模式共有，第二行模式专属 -->
-  <view class="toolbar" wx:if="{{!focusMode}}" catchtap="noop">
+  <view class="toolbar" wx:if="{{!focusMode}}" catchtap="onUIAreaTap">
     <view class="toolbar-row toolbar-row--common">
-      <view class="toolbar-btn" bindtap="onCycleStyle">
-        <text class="toolbar-btn__desc">数字颜色</text>
-        <text class="toolbar-btn__value">{{styleLabel}}</text>
-      </view>
       <view class="toolbar-btn" bindtap="onToggleTheme">
         <text class="toolbar-btn__desc">背景颜色</text>
         <text class="toolbar-btn__value">{{theme === 'dark' ? '深色' : '浅色'}}</text>
+      </view>
+      <view class="toolbar-btn" bindtap="onCycleStyle">
+        <text class="toolbar-btn__desc">数字颜色</text>
+        <text class="toolbar-btn__value">{{styleLabel}}</text>
       </view>
       <view class="toolbar-btn" bindtap="onCycleFontFamily">
         <text class="toolbar-btn__desc">字体</text>
@@ -121,19 +122,31 @@
         <text class="toolbar-btn__desc">渐变</text>
         <text class="toolbar-btn__value">{{gradient ? '开' : '关'}}</text>
       </view>
+      <view class="toolbar-btn" bindtap="onToggleSubTime">
+        <text class="toolbar-btn__desc">子时间</text>
+        <text class="toolbar-btn__value">{{showSubTime ? '显示' : '隐藏'}}</text>
+      </view>
       <view class="toolbar-btn" bindtap="onCycleEndAlert">
         <text class="toolbar-btn__desc">结束提醒</text>
         <text class="toolbar-btn__value">{{endAlertLabel}}</text>
       </view>
       <view class="toolbar-btn" bindtap="onToggleActionSide">
         <text class="toolbar-btn__desc">按钮位置</text>
-        <text class="toolbar-btn__value">{{actionSide === 'left' ? '左侧' : '右侧'}}</text>
+        <text class="toolbar-btn__value">{{actionSide === 'left' ? '反' : '正'}}</text>
       </view>
     </view>
     <view class="toolbar-row toolbar-row--mode">
       <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onAlarmTap">
         <text class="toolbar-btn__desc">闹钟</text>
         <text class="toolbar-btn__value">{{alarmOn ? alarmText : '关'}}</text>
+      </view>
+      <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onToggleClock24h">
+        <text class="toolbar-btn__desc">时制</text>
+        <text class="toolbar-btn__value">{{clock24h ? '24时' : '12时'}}</text>
+      </view>
+      <view class="toolbar-btn" wx:if="{{mode === 'clock'}}" bindtap="onToggleClockSeconds">
+        <text class="toolbar-btn__desc">显示秒</text>
+        <text class="toolbar-btn__value">{{clockShowSeconds ? '开' : '关'}}</text>
       </view>
       <view class="toolbar-btn" wx:for="{{actions}}" wx:key="key"
             data-key="{{item.key}}" bindtap="onActionTap">
@@ -145,7 +158,7 @@
 
   <!-- 7 时长设置弹层（倒计时 / 工作 / 休息共用） -->
   <view class="mask" wx:if="{{durationTarget !== ''}}" catchtap="closeDurationPanel"></view>
-  <view class="panel" wx:if="{{durationTarget !== ''}}" catchtap="noop">
+  <view class="panel" wx:if="{{durationTarget !== ''}}" catchtap="onUIAreaTap">
     <view class="panel-title">{{durationTitle}}</view>
     <view class="panel-label">时长（时 : 分 : 秒）</view>
     <view class="panel-row">
@@ -163,7 +176,7 @@
 
   <!-- 8 闹钟设置弹层（时 : 分） -->
   <view class="mask" wx:if="{{alarmPanelVisible}}" catchtap="closeAlarmPanel"></view>
-  <view class="panel" wx:if="{{alarmPanelVisible}}" catchtap="noop">
+  <view class="panel" wx:if="{{alarmPanelVisible}}" catchtap="onUIAreaTap">
     <view class="panel-title">闹钟</view>
     <view class="panel-label">时间（时 : 分）</view>
     <view class="panel-row">
@@ -180,36 +193,38 @@
 
   <!-- 9 计次浮层：全部计次（累计 + 分段） -->
   <view class="mask" wx:if="{{lapPanelVisible}}" catchtap="closeLapPanel"></view>
-  <view class="panel lap-panel" wx:if="{{lapPanelVisible}}" catchtap="noop">
+  <view class="panel lap-panel" wx:if="{{lapPanelVisible}}" catchtap="onUIAreaTap">
     <view class="panel-title">全部计次</view>
     <scroll-view class="lap-list" scroll-y>
       <view class="lap-row" wx:for="{{laps}}" wx:key="index">
         <text class="lap-row__idx">第{{item.index}}次</text>
         <text class="lap-row__cum">{{item.cumulativeText}}</text>
-        <text class="lap-row__split">+{{item.splitText}}</text>
+        <text class="lap-row__split" wx:if="{{item.splitText}}">+{{item.splitText}}</text>
       </view>
     </scroll-view>
     <view class="panel-actions">
+      <button class="panel-btn" wx:if="{{mode === 'clock'}}" bindtap="onClearLaps">清空</button>
       <button class="panel-btn secondary" bindtap="closeLapPanel">关闭</button>
     </view>
   </view>
 
   <!-- 10 联系我 -->
   <view class="mask" wx:if="{{contactPanelVisible}}" catchtap="closeContactPanel"></view>
-  <view class="panel contact-panel" wx:if="{{contactPanelVisible}}" catchtap="noop">
+  <view class="panel contact-panel" wx:if="{{contactPanelVisible}}" catchtap="onUIAreaTap">
     <view class="panel-title">联系我</view>
     <!-- 横屏高度有限：左侧文字与按钮，右侧二维码，避免竖排超屏 -->
     <view class="contact-body">
       <view class="contact-info">
         <view class="contact-tip">使用遇到问题，或想要新功能，直接加我微信</view>
+        <view class="contact-tip">如需开发小程序，也可以加我，本号作为接单平台。</view>
         <text class="contact-id" selectable>{{wechatId}}</text>
         <view class="panel-actions">
           <button class="panel-btn" bindtap="copyWechatId">复制微信号</button>
           <button class="panel-btn secondary" bindtap="closeContactPanel">关闭</button>
         </view>
       </view>
-      <image class="contact-qr" wx:if="{{contactQrVisible}}" src="/assets/contact-qr.jpg"
-             mode="aspectFit" show-menu-by-longpress binderror="onQrError" />
+      <image class="contact-qr" wx:if="{{contactQrVisible}}" src="/assets/contact-qr.png"
+             mode="widthFix" show-menu-by-longpress binderror="onQrError" />
     </view>
   </view>
 </view>

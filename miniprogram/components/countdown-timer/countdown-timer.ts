@@ -1,6 +1,6 @@
 // countdown-timer.ts
 // 倒计时：从设定时长倒数到 0，支持开始 / 暂停 / 重置 / 设置时长。样式由页面统一下发。
-import { formatHMS, formatHMSxx } from '../../utils/time'
+import { formatHMS, formatHMSxx, formatDateMinuteCN } from '../../utils/time'
 
 const TICK_MS = 16
 const DEFAULT_DURATION_MS = 60 * 1000
@@ -10,6 +10,7 @@ let started = false
 let durationMs = DEFAULT_DURATION_MS
 let remainingMs = DEFAULT_DURATION_MS
 let endAt = 0
+let subTime = ''
 let tickTimer: ReturnType<typeof setInterval> | undefined
 
 const buildActions = () => [
@@ -49,6 +50,7 @@ Component({
       durationMs = DEFAULT_DURATION_MS
       remainingMs = durationMs
       endAt = 0
+      subTime = ''
       this.setData({
         display: this._fmt(remainingMs),
         running: false,
@@ -147,6 +149,11 @@ Component({
       // 「整秒」精度下同一秒内不必重复 setData
       if (display !== this.data.display) this.setData({ display })
       if (rem <= 0) this._end()
+      const st = formatDateMinuteCN(new Date())
+      if (st !== subTime) {
+        subTime = st
+        this._emitState()
+      }
     },
 
     _end() {
@@ -182,11 +189,13 @@ Component({
     },
 
     _emitState() {
+      const st = formatDateMinuteCN(new Date())
+      subTime = st
       this.triggerEvent('statechange', {
         running: this.data.running,
         finished: this.data.finished,
         started,
-        subTime: '',
+        subTime: st,
         capabilities: { toggle: true, reset: true },
         actions: buildActions(),
         editable: !started,

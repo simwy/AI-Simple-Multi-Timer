@@ -62,3 +62,36 @@ export const formatLapTime = (ms: number): string => {
   const hms = h > 0 ? `${pad2(h)}:${pad2(m)}:${pad2(s)}` : `${pad2(m)}:${pad2(s)}`
   return `${hms}.${pad2(cs)}`
 }
+
+/** Date → YYYY年MM月DD日 HH:MM（正计时 / 倒计时子时间） */
+export const formatDateMinuteCN = (d: Date): string =>
+  `${d.getFullYear()}年${pad2(d.getMonth() + 1)}月${pad2(d.getDate())}日 ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+
+/** Date → 上午 / 下午（12 小时制标识） */
+export const meridiemOf = (d: Date): string => (d.getHours() < 12 ? '上午' : '下午')
+
+/** 时钟主时间显示：24/12 小时制 × 是否显示秒 × 是否显示百分秒 */
+export const formatClock = (
+  d: Date,
+  hour12: boolean,
+  showSeconds: boolean,
+  showCentis: boolean
+): string => {
+  let h = d.getHours()
+  if (hour12) {
+    h = h % 12
+    if (h === 0) h = 12
+  }
+  const hh = pad2(h)
+  const mm = pad2(d.getMinutes())
+  if (!showSeconds) return `${hh}:${mm}`
+  const ss = pad2(d.getSeconds())
+  if (!showCentis) return `${hh}:${mm}:${ss}`
+  return `${hh}:${mm}:${ss}.${pad2(Math.floor(d.getMilliseconds() / 10))}`
+}
+
+/** 当天累计毫秒 → HH:MM:SS（时钟模式计次） */
+export const formatClockLap = (msOfDay: number): string => {
+  const t = splitHMS(msOfDay)
+  return `${pad2(t.h)}:${pad2(t.m)}:${pad2(t.s)}`
+}

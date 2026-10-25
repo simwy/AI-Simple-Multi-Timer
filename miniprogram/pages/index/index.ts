@@ -1,6 +1,6 @@
 // index.ts
 // 大屏计时器页面：只负责布局、公共样式与模式编排；计时逻辑在各自组件内。
-import { formatDurationLabel, formatLapTime, pad2, splitHMS } from '../../utils/time'
+import { formatDurationLabel, formatLapTime, formatClockLap, pad2, splitHMS } from '../../utils/time'
 
 type Mode = 'clock' | 'stopwatch' | 'countdown' | 'pomodoro'
 type StyleKey = 'white' | 'green' | 'amber' | 'cyan'
@@ -8,7 +8,7 @@ type FontSizeKey = 's' | 'm' | 'l' | 'xl'
 type FontFamilyKey = 'seven' | 'rounded' | 'classic'
 type EditUnit = 'h' | 'm' | 's'
 
-type EndAlert = 'vibrate' | 'sound' | 'both'
+type EndAlert = 'vibrate' | 'sound' | 'both' | 'none'
 
 interface Lap {
   index: number
@@ -47,7 +47,7 @@ const MODE_COMPONENTS: Record<Mode, string> = {
   pomodoro: '#pomodoro-timer',
 }
 
-const STYLE_ORDER: StyleKey[] = ['white', 'green', 'amber', 'cyan']
+const STYLE_ORDER: StyleKey[] = ['white', 'green', 'cyan', 'amber']
 const STYLE_LABELS: Record<StyleKey, string> = {
   white: '白色',
   green: '绿色',
@@ -76,11 +76,12 @@ const clamp = (v: number, min: number, max: number): number => Math.min(max, Mat
 
 const NO_CAPABILITIES: Capabilities = { toggle: false, reset: false }
 
-const END_ALERT_ORDER: EndAlert[] = ['vibrate', 'sound', 'both']
+const END_ALERT_ORDER: EndAlert[] = ['vibrate', 'sound', 'both', 'none']
 const END_ALERT_LABELS: Record<EndAlert, string> = {
   vibrate: '振动',
   sound: '提示音',
   both: '振动+提示音',
+  none: '无',
 }
 
 // 单页实例的瞬时状态（不进 data，避免无谓渲染）
@@ -121,6 +122,11 @@ Component({
     fontFamilyLabel: FONT_FAMILY_LABELS.seven,
     gradient: false,
     showCentis: true,
+    showSubTime: true,
+
+    // 时钟专属：24 小时制 / 是否显示秒
+    clock24h: true,
+    clockShowSeconds: true,
 
     // 倒计时 / 番茄未开始时的「主时间滑动调时」
     editable: false,
@@ -133,7 +139,7 @@ Component({
     // 操作组贴边方向（全局设置，默认右侧）
     actionSide: 'right' as 'left' | 'right',
 
-    // 结束提醒三态（全局设置）
+    // 结束提醒（全局设置）
     endAlert: 'both' as EndAlert,
     endAlertLabel: END_ALERT_LABELS.both,
 
@@ -144,7 +150,7 @@ Component({
     alarmH: 0,
     alarmM: 0,
 
-    // 正计时计次（由组件上报，页面负责渲染）
+    // 正计时 / 时钟计次（由组件上报，页面负责渲染）
     laps: [] as { index: number; cumulativeText: string; splitText: string }[],
     lapPreview: [] as { index: number; cumulativeText: string }[],
     lapMore: false,
@@ -289,12 +295,13 @@ Component({
       if (typeof detail.alarmOn === 'boolean') updates.alarmOn = detail.alarmOn
       if (typeof detail.alarmText === 'string') updates.alarmText = detail.alarmText
 
-      // 正计时计次上报（组件只在开始/暂停/重置/计次时 emit，这里格式化开销可忽略）
+      // 正计时 / 时钟计次上报（组件只在开始/暂停/重置/计次时 emit，这里格式化开销可忽略）
       if (Array.isArray(detail.laps)) {
+        const isClock = mode === 'clock'
         const formatted = (detail.laps as Lap[]).map(l => ({
           index: l.index,
-          cumulativeText: formatLapTime(l.cumulativeMs),
-          splitText: formatLapTime(l.splitMs),
+          cumulativeText: isClock ? formatClockLap(l.cumulativeMs) : formatLapTime(l.cumulativeMs),
+          splitText: isClock ? '' : formatLapTime(l.splitMs),
         }))
         updates.laps = formatted
         updates.lapPreview = formatted.slice(-2).map(f => ({
@@ -427,8 +434,12 @@ Component({
 
     // ===== 正计时计次 =====
     onLap() {
-      const comp = this.selectComponent(MODE_COMPONENTS.stopwatch)
+      const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
       if (comp) comp.lap()
+    },
+    onClearLaps() {
+      const comp = this.selectComponent(MODE_COMPONENTS.clock)
+      if (comp) comp.clearLaps()
     },
     openLapPanel() {
       this.setData({ lapPanelVisible: true })
@@ -543,6 +554,21 @@ Component({
       this.setData({ showCentis })
       wx.setStorageSync('timer.showCentis', showCentis)
     },
+    onToggleSubTime() {
+      const showSubTime = !this.data.showSubTime
+      this.setData({ showSubTime })
+      wx.setStorageSync('timer.showSubTime', showSubTime)
+    },
+    onToggleClock24h() {
+      const clock24h = !this.data.clock24h
+      this.setData({ clock24h })
+      wx.setStorageSync('timer.clock24h', clock24h)
+    },
+    onToggleClockSeconds() {
+      const clockShowSeconds = !this.data.clockShowSeconds
+      this.setData({ clockShowSeconds })
+      wx.setStorageSync('timer.clockShowSeconds', clockShowSeconds)
+    },
     onCycleEndAlert() {
       const current = END_ALERT_ORDER.indexOf(this.data.endAlert)
       const endAlert = END_ALERT_ORDER[(current + 1) % END_ALERT_ORDER.length]
@@ -550,9 +576,10 @@ Component({
       wx.setStorageSync('timer.endAlert', endAlert)
     },
 
-    // ===== 结束 / 闹钟提醒：按三态设置执行 =====
+    // ===== 结束 / 闹钟提醒：按设置执行 =====
     _playAlert() {
       this._stopAlert()
+      if (this.data.endAlert === 'none') return
       const sound = this.data.endAlert === 'sound' || this.data.endAlert === 'both'
       const vibrate = this.data.endAlert === 'vibrate' || this.data.endAlert === 'both'
       alertStep = 0
@@ -602,6 +629,7 @@ Component({
       const theme = this.data.theme === 'dark' ? 'light' : 'dark'
       this.setData({ theme })
       wx.setStorageSync('timer.theme', theme)
+      this._applyMenuStyle()
     },
 
     // ===== 操作组贴边方向 =====
@@ -630,7 +658,28 @@ Component({
       this.setData({ contactQrVisible: false })
     },
 
-    noop() {},
+    // ===== 结束提醒：屏幕任意点击即全部停止 =====
+    onPageTap() {
+      if (this._stopAlertIfActive()) return
+      this.onToggleFocus()
+    },
+    onUIAreaTap() {
+      this._stopAlertIfActive()
+    },
+    _stopAlertIfActive(): boolean {
+      if (alertInterval || alertStopTimer) {
+        this._stopAlert()
+        return true
+      }
+      return false
+    },
+
+    // ===== 胶囊按钮样式：跟随主题（浅/深），无法指定任意背景色 =====
+    _applyMenuStyle() {
+      if (typeof (wx as any).setMenuStyle === 'function') {
+        (wx as any).setMenuStyle({ style: this.data.theme === 'dark' ? 'dark' : 'light' })
+      }
+    },
 
     // ===== 持久化（主题 / 样式 / 字号 / 精度；时长由各按钮的 storageKey 负责） =====
     _loadPersisted() {
@@ -641,6 +690,9 @@ Component({
       const fontFamily = wx.getStorageSync('timer.fontFamily')
       const gradient = wx.getStorageSync('timer.gradient')
       const showCentis = wx.getStorageSync('timer.showCentis')
+      const showSubTime = wx.getStorageSync('timer.showSubTime')
+      const clock24h = wx.getStorageSync('timer.clock24h')
+      const clockShowSeconds = wx.getStorageSync('timer.clockShowSeconds')
       const updates: any = {}
       if (theme === 'light' || theme === 'dark') updates.theme = theme
       if (style === 'white' || style === 'green' || style === 'amber' || style === 'cyan') {
@@ -658,12 +710,16 @@ Component({
       }
       if (typeof gradient === 'boolean') updates.gradient = gradient
       if (typeof showCentis === 'boolean') updates.showCentis = showCentis
+      if (typeof showSubTime === 'boolean') updates.showSubTime = showSubTime
+      if (typeof clock24h === 'boolean') updates.clock24h = clock24h
+      if (typeof clockShowSeconds === 'boolean') updates.clockShowSeconds = clockShowSeconds
       const endAlert = wx.getStorageSync('timer.endAlert')
-      if (endAlert === 'vibrate' || endAlert === 'sound' || endAlert === 'both') {
+      if (endAlert === 'vibrate' || endAlert === 'sound' || endAlert === 'both' || endAlert === 'none') {
         updates.endAlert = endAlert
         updates.endAlertLabel = END_ALERT_LABELS[endAlert as EndAlert]
       }
       if (Object.keys(updates).length) this.setData(updates)
+      this._applyMenuStyle()
     },
   },
 })
