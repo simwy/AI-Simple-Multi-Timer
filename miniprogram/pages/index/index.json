@@ -1,4 +1,10 @@
 {
   "pageOrientation": "landscape",
-  "disableScroll": true
+  "disableScroll": true,
+  "usingComponents": {
+    "clock-timer": "../../components/clock-timer/clock-timer",
+    "stopwatch-timer": "../../components/stopwatch-timer/stopwatch-timer",
+    "countdown-timer": "../../components/countdown-timer/countdown-timer",
+    "pomodoro-timer": "../../components/pomodoro-timer/pomodoro-timer"
+  }
 }

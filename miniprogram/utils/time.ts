@@ -29,3 +29,12 @@ export const formatDateCN = (d: Date): string => {
 /** Date → HH:MM:SS */
 export const formatClockHMS = (d: Date): string =>
   `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+
+/** 毫秒 → MM:SS；满 1 小时 → H:MM:SS（用于胶囊标签） */
+export const formatDurationLabel = (ms: number): string => {
+  const totalSec = Math.floor(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  return h > 0 ? `${h}:${pad2(m)}:${pad2(s)}` : `${pad2(m)}:${pad2(s)}`
+}

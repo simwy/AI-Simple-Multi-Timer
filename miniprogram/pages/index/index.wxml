@@ -1,52 +1,60 @@
 <!--index.wxml-->
 <view class="page theme-{{theme}}">
 
-  <!-- 顶部分段控件 -->
-  <view class="modes">
-    <view class="mode-item {{mode === 'clock' ? 'active' : ''}}" data-mode="clock" bindtap="onSwitchMode">时钟</view>
-    <view class="mode-item {{mode === 'stopwatch' ? 'active' : ''}}" data-mode="stopwatch" bindtap="onSwitchMode">正计时</view>
-    <view class="mode-item {{mode === 'countdown' ? 'active' : ''}}" data-mode="countdown" bindtap="onSwitchMode">倒计时</view>
+  <!-- 1 顶部模式栏 -->
+  <view class="mode-bar">
+    <view wx:for="{{modes}}" wx:key="key" class="mode-tab {{mode === item.key ? 'active' : ''}}"
+          data-mode="{{item.key}}" bindtap="onSwitchMode">{{item.label}}</view>
   </view>
 
-  <!-- 日期（仅时钟模式） -->
-  <view class="date" wx:if="{{mode === 'clock'}}">{{dateStr}}</view>
+  <!-- 2 子时间区：固定占位，空字符串也保留高度 -->
+  <view class="sub-time">{{subTime}}</view>
 
-  <!-- 中间数字 -->
-  <view class="digits {{mode === 'clock' ? 'clock' : 'timing'}} style-{{style}} {{cdFinished ? 'finished' : ''}}">
-    <text wx:if="{{mode === 'clock'}}">{{timeStr}}</text>
-    <text wx:elif="{{mode === 'stopwatch'}}">{{swDisplay}}</text>
-    <text wx:else>{{cdDisplay}}</text>
-  </view>
-  <view class="timeup" wx:if="{{cdFinished}}">时间到</view>
-
-  <!-- 右下角操作（时钟模式隐藏） -->
-  <view class="actions" wx:if="{{mode !== 'clock'}}">
-    <view class="circle reset" bindtap="onReset">重置</view>
-    <view class="circle start {{(mode === 'stopwatch' && swRunning) || (mode === 'countdown' && cdRunning) ? 'running' : ''}}" bindtap="onStartStop">{{(mode === 'stopwatch' && swRunning) || (mode === 'countdown' && cdRunning) ? '暂停' : '开始'}}</view>
+  <!-- 3 主时间区：4 个组件常驻，非激活项隐藏 -->
+  <view class="main-time style-{{style}} {{finished ? 'is-finished' : ''}}">
+    <clock-timer id="clock-timer" class="mode-host {{mode === 'clock' ? '' : 'hidden'}}"
+                 data-mode="clock" bind:statechange="onStateChange" />
+    <stopwatch-timer id="stopwatch-timer" class="mode-host {{mode === 'stopwatch' ? '' : 'hidden'}}"
+                     data-mode="stopwatch" bind:statechange="onStateChange" />
+    <countdown-timer id="countdown-timer" class="mode-host {{mode === 'countdown' ? '' : 'hidden'}}"
+                     data-mode="countdown" bind:statechange="onStateChange" />
+    <pomodoro-timer id="pomodoro-timer" class="mode-host {{mode === 'pomodoro' ? '' : 'hidden'}}"
+                    data-mode="pomodoro" bind:statechange="onStateChange" />
   </view>
 
-  <!-- 底部胶囊 -->
-  <view class="pills">
-    <view class="pill" bindtap="cycleStyle">{{styleLabel}}</view>
-    <view class="pill" bindtap="toggleTheme">{{theme === 'dark' ? '深色' : '浅色'}}</view>
-    <view class="pill" bindtap="toggleSettings">设置</view>
+  <!-- 4 结束提示 -->
+  <view class="time-up" wx:if="{{finished}}">时间到</view>
+
+  <!-- 5 主操作组：由激活组件的 capabilities 决定显隐 -->
+  <view class="action-group" wx:if="{{capabilities.toggle || capabilities.reset}}">
+    <view class="action-btn action-reset" wx:if="{{capabilities.reset}}" bindtap="onReset">重置</view>
+    <view class="action-btn action-toggle {{running ? 'is-running' : ''}}" wx:if="{{capabilities.toggle}}"
+          bindtap="onToggle">{{running ? '暂停' : '开始'}}</view>
   </view>
 
-  <!-- 设置面板 -->
-  <view class="mask" wx:if="{{showSettingsPanel}}" bindtap="toggleSettings"></view>
-  <view class="panel" wx:if="{{showSettingsPanel}}">
-    <view class="panel-title">设置</view>
-    <view class="panel-label">倒计时时长（时 : 分 : 秒）</view>
+  <!-- 6 底部工具栏：前两个公共按钮 + 组件声明的模式专属按钮 -->
+  <view class="toolbar">
+    <view class="toolbar-btn" bindtap="onCycleStyle">{{styleLabel}}</view>
+    <view class="toolbar-btn" bindtap="onToggleTheme">{{theme === 'dark' ? '深色' : '浅色'}}</view>
+    <view class="toolbar-btn" wx:for="{{actions}}" wx:key="key"
+          data-key="{{item.key}}" bindtap="onActionTap">{{item.label}}</view>
+  </view>
+
+  <!-- 7 时长设置弹层（倒计时 / 工作 / 休息共用） -->
+  <view class="mask" wx:if="{{durationTarget !== ''}}" bindtap="closeDurationPanel"></view>
+  <view class="panel" wx:if="{{durationTarget !== ''}}">
+    <view class="panel-title">{{durationTitle}}</view>
+    <view class="panel-label">时长（时 : 分 : 秒）</view>
     <view class="panel-row">
-      <input class="panel-input" type="number" value="{{cdH}}" bindinput="onCdHInput" />
+      <input class="panel-input" type="number" value="{{durH}}" bindinput="onDurHInput" />
       <text class="panel-colon">:</text>
-      <input class="panel-input" type="number" value="{{cdM}}" bindinput="onCdMInput" />
+      <input class="panel-input" type="number" value="{{durM}}" bindinput="onDurMInput" />
       <text class="panel-colon">:</text>
-      <input class="panel-input" type="number" value="{{cdS}}" bindinput="onCdSInput" />
+      <input class="panel-input" type="number" value="{{durS}}" bindinput="onDurSInput" />
     </view>
     <view class="panel-actions">
-      <button class="panel-btn" bindtap="applyCdDuration">确定</button>
-      <button class="panel-btn secondary" bindtap="toggleSettings">关闭</button>
+      <button class="panel-btn" bindtap="applyDuration">确定</button>
+      <button class="panel-btn secondary" bindtap="closeDurationPanel">关闭</button>
     </view>
   </view>
 </view>

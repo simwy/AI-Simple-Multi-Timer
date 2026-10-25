@@ -47,8 +47,8 @@ page {
   --glow: rgba(26, 156, 58, 0.16);
 }
 
-/* ===== 顶部分段控件 ===== */
-.modes {
+/* ===== 1 顶部模式栏 ===== */
+.mode-bar {
   align-self: center;
   display: flex;
   margin-top: 12px;
@@ -56,31 +56,23 @@ page {
   border-radius: 999px;
   background: var(--tab-bg);
 }
-.mode-item {
-  padding: 8px 20px;
+.mode-tab {
+  padding: 8px 12px;
   border-radius: 999px;
   font-size: 22px;
   line-height: 1.5;
   color: var(--dim);
   white-space: nowrap;
 }
-.mode-item.active {
+.mode-tab.active {
   background: var(--tab-active-bg);
   color: var(--fg);
 }
 
-/* ===== 胶囊按钮（通用） ===== */
-.pill {
-  padding: 8px 18px;
-  border-radius: 999px;
-  background: var(--pill-bg);
-  color: var(--pill-text);
-  font-size: 20px;
-  line-height: 1.5;
-}
-
-/* ===== 日期 ===== */
-.date {
+/* ===== 2 子时间区（固定高度，切换模式不跳动） ===== */
+.sub-time {
+  height: 34px;
+  line-height: 34px;
   text-align: center;
   color: var(--dim);
   font-size: 22px;
@@ -88,32 +80,63 @@ page {
   margin-top: 4px;
 }
 
-/* ===== 数字 ===== */
-.digits {
+/* ===== 3 主时间区 ===== */
+.main-time {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-}
-.digits text {
+
+  /* 配色档通过 CSS 变量下发到组件内部文字 */
+  --digit-color: var(--fg);
+  --digit-glow: var(--glow);
+
+  /* 字体类属性可继承进自定义组件，作为 apply-shared 之外的第二重保障 */
   font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
-  color: var(--fg);
+  font-size: 14vw;
+  letter-spacing: 2px;
+  color: var(--digit-color);
+  text-align: center;
+  white-space: nowrap;
+  text-shadow: 0 0 20px var(--digit-glow);
+}
+.main-time.style-green {
+  --digit-color: #34d058;
+  --digit-glow: rgba(52, 208, 88, 0.45);
+}
+.main-time.style-amber {
+  --digit-color: #ffb020;
+  --digit-glow: rgba(255, 176, 32, 0.45);
+}
+
+/* 组件内数字文字：4 个组件共用这一条（组件 json 开启 apply-shared） */
+.main-time__value {
+  font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
+  color: var(--digit-color, var(--fg));
   font-size: 14vw;
   text-align: center;
   white-space: nowrap;
   letter-spacing: 2px;
-  text-shadow: 0 0 20px var(--glow);
+  text-shadow: 0 0 20px var(--digit-glow, var(--glow));
 }
-.digits.style-green text { color: #34d058; text-shadow: 0 0 20px rgba(52, 208, 88, 0.45); }
-.digits.style-amber text { color: #ffb020; text-shadow: 0 0 20px rgba(255, 176, 32, 0.45); }
-.digits.finished text {
-  color: #ff453a;
-  text-shadow: 0 0 20px rgba(255, 69, 58, 0.55);
+/* 结束态：容器在页面内，动画与配色都不依赖组件内部样式 */
+.main-time.is-finished {
+  --digit-color: #ff453a;
+  --digit-glow: rgba(255, 69, 58, 0.55);
   animation: blink 0.5s ease-in-out infinite alternate;
 }
 
-.timeup {
+/* 组件宿主：显示 / 隐藏 */
+.mode-host {
+  display: block;
+}
+.hidden {
+  display: none;
+}
+
+/* ===== 4 结束提示 ===== */
+.time-up {
   position: absolute;
   top: 42%;
   left: 50%;
@@ -128,8 +151,8 @@ page {
   to { opacity: 0.2; }
 }
 
-/* ===== 右下角操作 ===== */
-.actions {
+/* ===== 5 主操作组（重置 / 开始） ===== */
+.action-group {
   position: absolute;
   right: 32px;
   bottom: 120px;
@@ -138,7 +161,7 @@ page {
   align-items: center;
   gap: 16px;
 }
-.circle {
+.action-btn {
   width: 88px;
   height: 88px;
   border-radius: 50%;
@@ -147,27 +170,35 @@ page {
   justify-content: center;
   font-size: 24px;
 }
-.circle.reset {
+.action-reset {
   color: var(--reset-fg);
   background: rgba(128, 128, 128, 0.15);
 }
-.circle.start {
+.action-toggle {
   color: var(--accent);
   background: rgba(52, 208, 88, 0.12);
 }
-.circle.start.running {
+.action-toggle.is-running {
   color: #ffb020;
 }
 
-/* ===== 底部胶囊行 ===== */
-.pills {
+/* ===== 6 底部工具栏 ===== */
+.toolbar {
   display: flex;
   justify-content: center;
   gap: 10px;
   padding: 12px 0 24px;
 }
+.toolbar-btn {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--pill-bg);
+  color: var(--pill-text);
+  font-size: 20px;
+  line-height: 1.5;
+}
 
-/* ===== 设置面板 ===== */
+/* ===== 7 时长设置弹层 ===== */
 .mask {
   position: absolute;
   top: 0;

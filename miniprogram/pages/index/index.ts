@@ -1,9 +1,37 @@
 // index.ts
-// 大屏计时器：时钟 / 正计时 / 倒计时
-import { formatClockHMS, formatDateCN, formatHMSxx } from '../../utils/time'
-
-type Mode = 'clock' | 'stopwatch' | 'countdown'
+// 大屏计时器页面：只负责布局、公共样式与模式编排；计时逻辑在各自组件内。
+type Mode = 'clock' | 'stopwatch' | 'countdown' | 'pomodoro'
 type StyleKey = 'white' | 'green' | 'amber'
+
+interface ModeAction {
+  key: string
+  label: string
+  kind: 'duration'
+  title: string
+  valueMs: number
+  minMs: number
+  storageKey: string
+}
+
+interface Capabilities {
+  toggle: boolean
+  reset: boolean
+}
+
+const MODES: { key: Mode; label: string }[] = [
+  { key: 'clock', label: '时钟' },
+  { key: 'stopwatch', label: '正计时' },
+  { key: 'countdown', label: '倒计时' },
+  { key: 'pomodoro', label: '番茄' },
+]
+
+// 页面唯一知道「哪个模式用哪个组件」的地方
+const MODE_COMPONENTS: Record<Mode, string> = {
+  clock: '#clock-timer',
+  stopwatch: '#stopwatch-timer',
+  countdown: '#countdown-timer',
+  pomodoro: '#pomodoro-timer',
+}
 
 const STYLE_ORDER: StyleKey[] = ['white', 'green', 'amber']
 const STYLE_LABELS: Record<StyleKey, string> = {
@@ -12,66 +40,57 @@ const STYLE_LABELS: Record<StyleKey, string> = {
   amber: '琥珀',
 }
 
-const TICK_FAST = 16 // 走表（百分秒）
-const TICK_SLOW = 250 // 时钟
+const NO_CAPABILITIES: Capabilities = { toggle: false, reset: false }
 
-// 非渲染状态放模块级（本页单实例），避免进 data 触发重渲染
-let swBaseMs = 0
-let swStartAt = 0
-let cdEndAt = 0
-let slowTimer: ReturnType<typeof setInterval> | undefined
-let fastTimer: ReturnType<typeof setInterval> | undefined
+// 单页实例的瞬时状态（不进 data，避免无谓渲染）
+let activeMode: Mode = 'clock'
+let seeded: Record<string, boolean> = {}
+let pendingAction: ModeAction | null = null
 
 Component({
   data: {
+    modes: MODES,
     mode: 'clock' as Mode,
     theme: 'dark' as 'dark' | 'light',
     style: 'white' as StyleKey,
     styleLabel: '白色',
 
-    // 时钟
-    dateStr: '',
-    timeStr: '',
+    // 由激活组件上报
+    subTime: '',
+    running: false,
+    finished: false,
+    capabilities: NO_CAPABILITIES,
+    actions: [] as ModeAction[],
 
-    // 正计时
-    swRunning: false,
-    swDisplay: '00:00:00.00',
-
-    // 倒计时
-    cdRunning: false,
-    cdFinished: false,
-    cdDisplay: '00:01:00.00',
-    cdDurationMs: 60000,
-    cdRemainingMs: 60000,
-    cdH: 0,
-    cdM: 1,
-    cdS: 0,
-
-    // 面板
-    showSettingsPanel: false,
+    // 时长设置弹层（组件只给参数，弹层由页面统一渲染）
+    durationTarget: '',
+    durationTitle: '',
+    durH: 0,
+    durM: 0,
+    durS: 0,
   },
 
   lifetimes: {
     attached() {
+      seeded = {}
+      pendingAction = null
+      activeMode = this.data.mode
       this._loadPersisted()
-      this._renderCountdown()
-      this._refreshClock()
-      this._startSlowTimer()
+    },
+    ready() {
+      const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
+      if (comp) comp.activate()
     },
     detached() {
-      this._clearTimers()
       wx.setKeepScreenOn({ keepScreenOn: false })
     },
   },
 
   pageLifetimes: {
     show() {
-      this._refreshClock()
-      this._startSlowTimer()
-      if (this.data.swRunning || this.data.cdRunning) this._startFastTimer()
+      if (this.data.running) wx.setKeepScreenOn({ keepScreenOn: true })
     },
     hide() {
-      this._clearTimers()
       wx.setKeepScreenOn({ keepScreenOn: false })
     },
   },
@@ -80,179 +99,149 @@ Component({
     // ===== 模式切换 =====
     onSwitchMode(e: any) {
       const mode = e.currentTarget.dataset.mode as Mode
-      if (mode === this.data.mode) return
-      if (this.data.swRunning || this.data.cdRunning) this._pause()
-      this.setData({ mode, showSettingsPanel: false })
-    },
+      if (mode === activeMode) return
 
-    // ===== 开始 / 暂停 =====
-    onStartStop() {
-      if (this.data.mode === 'clock') return
-      if (this.data.swRunning || this.data.cdRunning) this._pause()
-      else this._start()
-    },
+      const prev = this.selectComponent(MODE_COMPONENTS[activeMode])
+      if (prev) prev.deactivate()
 
-    _start() {
-      if (this.data.mode === 'stopwatch') {
-        swStartAt = Date.now()
-        this.setData({ swRunning: true })
-      } else {
-        if (this.data.cdRemainingMs <= 0) this._syncCountdownFromDuration()
-        cdEndAt = Date.now() + this.data.cdRemainingMs
-        this.setData({ cdRunning: true, cdFinished: false })
-      }
-      this._startFastTimer()
-      wx.setKeepScreenOn({ keepScreenOn: true })
-    },
-
-    _pause() {
-      if (this.data.mode === 'stopwatch' && this.data.swRunning) {
-        swBaseMs += Date.now() - swStartAt
-        swStartAt = 0
-        this.setData({ swRunning: false, swDisplay: formatHMSxx(swBaseMs) })
-      } else if (this.data.mode === 'countdown' && this.data.cdRunning) {
-        const remaining = Math.max(0, cdEndAt - Date.now())
-        this.setData({ cdRemainingMs: remaining, cdDisplay: formatHMSxx(remaining), cdRunning: false })
-      }
-      this._stopFastTimer()
-      wx.setKeepScreenOn({ keepScreenOn: false })
-    },
-
-    onReset() {
-      if (this.data.mode === 'stopwatch') {
-        swBaseMs = 0
-        swStartAt = 0
-        this.setData({ swRunning: false, swDisplay: '00:00:00.00' })
-      } else {
-        this._syncCountdownFromDuration()
-        this.setData({ cdRunning: false, cdFinished: false })
-      }
-      this._stopFastTimer()
-      wx.setKeepScreenOn({ keepScreenOn: false })
-    },
-
-    // ===== 走表 tick =====
-    _tickFast() {
-      if (this.data.mode === 'stopwatch') {
-        const elapsed = swBaseMs + (Date.now() - swStartAt)
-        this.setData({ swDisplay: formatHMSxx(elapsed) })
-      } else if (this.data.mode === 'countdown') {
-        const remaining = Math.max(0, cdEndAt - Date.now())
-        this.setData({ cdRemainingMs: remaining, cdDisplay: formatHMSxx(remaining) })
-        if (remaining <= 0) this._onCountdownEnd()
-      }
-    },
-
-    _onCountdownEnd() {
-      this._pause()
-      this.setData({ cdFinished: true, cdRemainingMs: 0, cdDisplay: '00:00:00.00' })
-      wx.vibrateLong()
-    },
-
-    // ===== 时钟 =====
-    _refreshClock() {
-      const now = new Date()
-      this.setData({ dateStr: formatDateCN(now), timeStr: formatClockHMS(now) })
-    },
-
-    // ===== 倒计时设置 =====
-    _syncCountdownFromDuration() {
+      activeMode = mode
+      pendingAction = null
       this.setData({
-        cdRemainingMs: this.data.cdDurationMs,
-        cdDisplay: formatHMSxx(this.data.cdDurationMs),
+        mode,
+        subTime: '',
+        running: false,
+        finished: false,
+        capabilities: NO_CAPABILITIES,
+        actions: [],
+        durationTarget: '',
+      })
+
+      const next = this.selectComponent(MODE_COMPONENTS[mode])
+      if (next) next.activate()
+    },
+
+    // ===== 组件状态同步 =====
+    onStateChange(e: any) {
+      const mode = e.currentTarget.dataset.mode as Mode
+      const detail = e.detail
+
+      // 每个模式第一次上报时，用已保存的时长回填（组件本身不碰存储）
+      if (!seeded[mode] && this._seedMode(mode, detail.actions || [])) return
+      if (mode !== activeMode) return
+
+      // 结束提醒只在「运行中 → 已结束」的上升沿触发，切到已结束的模式不会误震
+      if (this.data.running && detail.finished) wx.vibrateLong()
+      if (this.data.running !== !!detail.running) {
+        wx.setKeepScreenOn({ keepScreenOn: !!detail.running })
+      }
+
+      this.setData({
+        running: !!detail.running,
+        finished: !!detail.finished,
+        subTime: detail.subTime || '',
+        capabilities: detail.capabilities || NO_CAPABILITIES,
+        actions: detail.actions || [],
       })
     },
-    _renderCountdown() {
-      this.setData({ cdDisplay: formatHMSxx(this.data.cdRemainingMs) })
+
+    /** 首次拿到某模式的按钮描述时回填一次存储；返回 true 表示正在等待组件的第二次上报 */
+    _seedMode(mode: Mode, actions: ModeAction[]): boolean {
+      let pending = false
+      let missing = false
+      for (const action of actions) {
+        const stored = wx.getStorageSync(action.storageKey)
+        if (typeof stored !== 'number' || stored < action.minMs || stored === action.valueMs) {
+          continue
+        }
+        const comp = this.selectComponent(MODE_COMPONENTS[mode])
+        if (!comp) {
+          missing = true
+          continue
+        }
+        seeded[mode] = true
+        comp.setDuration(action.key, stored)
+        pending = true
+      }
+      if (!pending && !missing) seeded[mode] = true
+      return pending
     },
 
-    // ===== 样式 / 主题 / 设置 =====
-    cycleStyle() {
+    // ===== 主操作（重置 / 开始） =====
+    onToggle() {
+      const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
+      if (comp) comp.toggle()
+    },
+    onReset() {
+      const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
+      if (comp) comp.reset()
+    },
+
+    // ===== 模式专属按钮 =====
+    onActionTap(e: any) {
+      const key = e.currentTarget.dataset.key
+      const action = (this.data.actions as ModeAction[]).find(item => item.key === key)
+      if (!action) return
+      pendingAction = action
+      const totalSec = Math.floor(action.valueMs / 1000)
+      this.setData({
+        durationTarget: action.key,
+        durationTitle: action.title,
+        durH: Math.floor(totalSec / 3600),
+        durM: Math.floor((totalSec % 3600) / 60),
+        durS: totalSec % 60,
+      })
+    },
+    closeDurationPanel() {
+      pendingAction = null
+      this.setData({ durationTarget: '' })
+    },
+    onDurHInput(e: any) {
+      this.setData({ durH: Number(e.detail.value) || 0 })
+    },
+    onDurMInput(e: any) {
+      this.setData({ durM: Number(e.detail.value) || 0 })
+    },
+    onDurSInput(e: any) {
+      this.setData({ durS: Number(e.detail.value) || 0 })
+    },
+    applyDuration() {
+      const action = pendingAction
+      if (!action) return
+      const raw = ((this.data.durH * 60 + this.data.durM) * 60 + this.data.durS) * 1000
+      const ms = Math.max(action.minMs, raw)
+
+      const comp = this.selectComponent(MODE_COMPONENTS[activeMode])
+      if (comp) comp.setDuration(action.key, ms)
+      wx.setStorageSync(action.storageKey, ms)
+
+      pendingAction = null
+      this.setData({ durationTarget: '' })
+    },
+
+    // ===== 样式 / 主题 =====
+    onCycleStyle() {
       const current = STYLE_ORDER.indexOf(this.data.style)
       const style = STYLE_ORDER[(current + 1) % STYLE_ORDER.length]
       this.setData({ style, styleLabel: STYLE_LABELS[style] })
       wx.setStorageSync('timer.style', style)
     },
-    toggleTheme() {
+    onToggleTheme() {
       const theme = this.data.theme === 'dark' ? 'light' : 'dark'
       this.setData({ theme })
       wx.setStorageSync('timer.theme', theme)
     },
-    toggleSettings() {
-      this.setData({ showSettingsPanel: !this.data.showSettingsPanel })
-    },
-    onCdHInput(e: any) {
-      this.setData({ cdH: Number(e.detail.value) || 0 })
-    },
-    onCdMInput(e: any) {
-      this.setData({ cdM: Number(e.detail.value) || 0 })
-    },
-    onCdSInput(e: any) {
-      this.setData({ cdS: Number(e.detail.value) || 0 })
-    },
-    applyCdDuration() {
-      const ms = ((this.data.cdH * 60 + this.data.cdM) * 60 + this.data.cdS) * 1000
-      const clamped = Math.max(0, ms)
-      const totalSec = Math.floor(clamped / 1000)
-      this.setData({
-        cdDurationMs: clamped,
-        cdRemainingMs: clamped,
-        cdDisplay: formatHMSxx(clamped),
-        cdFinished: false,
-        cdH: Math.floor(totalSec / 3600),
-        cdM: Math.floor((totalSec % 3600) / 60),
-        cdS: totalSec % 60,
-        showSettingsPanel: false,
-      })
-      wx.setStorageSync('timer.cdDurationMs', clamped)
-    },
 
-    // ===== 持久化 =====
+    // ===== 持久化（仅主题 / 样式；时长由各按钮的 storageKey 负责） =====
     _loadPersisted() {
       const theme = wx.getStorageSync('timer.theme')
       const style = wx.getStorageSync('timer.style')
-      const cdDurationMs = wx.getStorageSync('timer.cdDurationMs')
       const updates: any = {}
       if (theme === 'light' || theme === 'dark') updates.theme = theme
       if (style === 'white' || style === 'green' || style === 'amber') {
         updates.style = style
         updates.styleLabel = STYLE_LABELS[style as StyleKey]
       }
-      if (typeof cdDurationMs === 'number' && cdDurationMs > 0) {
-        const totalSec = Math.floor(cdDurationMs / 1000)
-        updates.cdDurationMs = cdDurationMs
-        updates.cdRemainingMs = cdDurationMs
-        updates.cdH = Math.floor(totalSec / 3600)
-        updates.cdM = Math.floor((totalSec % 3600) / 60)
-        updates.cdS = totalSec % 60
-      }
       if (Object.keys(updates).length) this.setData(updates)
-    },
-
-    // ===== 定时器 =====
-    _startSlowTimer() {
-      this._stopSlowTimer()
-      slowTimer = setInterval(() => this._refreshClock(), TICK_SLOW)
-    },
-    _stopSlowTimer() {
-      if (slowTimer) {
-        clearInterval(slowTimer)
-        slowTimer = undefined
-      }
-    },
-    _startFastTimer() {
-      this._stopFastTimer()
-      fastTimer = setInterval(() => this._tickFast(), TICK_FAST)
-    },
-    _stopFastTimer() {
-      if (fastTimer) {
-        clearInterval(fastTimer)
-        fastTimer = undefined
-      }
-    },
-    _clearTimers() {
-      this._stopSlowTimer()
-      this._stopFastTimer()
     },
   },
 })
