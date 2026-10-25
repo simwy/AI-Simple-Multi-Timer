@@ -76,7 +76,7 @@ page {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 8px;
   overflow: hidden;
 }
 
@@ -88,6 +88,12 @@ page {
   color: var(--dim);
   font-size: 22px;
   letter-spacing: 2px;
+}
+
+/* 主时间下方空占位：与子时间等高，抵消子时间在整组中的高度，使主时间精确居中 */
+.stage-balancer {
+  height: 34px;
+  flex: none;
 }
 
 /* ===== 3 主时间区 ===== */
@@ -103,7 +109,7 @@ page {
 
   /* 字体类属性可继承进自定义组件，作为 apply-shared 之外的第二重保障 */
   font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
-  font-size: 10vw;
+  font-size: 13vw;
   letter-spacing: 2px;
   color: var(--digit-color);
   text-align: center;
@@ -123,7 +129,7 @@ page {
 .main-time__value {
   font-family: 'TimerDigits', "SF Mono", "DIN Alternate", Menlo, Consolas, monospace;
   color: var(--digit-color, var(--fg));
-  font-size: 10vw;
+  font-size: 13vw;
   text-align: center;
   white-space: nowrap;
   letter-spacing: 2px;
@@ -183,18 +189,8 @@ page {
   align-items: center;
   justify-content: center;
   font-size: 16px;
-}
-.action-reset {
-  color: var(--reset-fg);
+  color: var(--fg);
   background: rgba(128, 128, 128, 0.15);
-}
-.action-start {
-  color: var(--accent);
-  background: rgba(52, 208, 88, 0.12);
-}
-.action-pause {
-  color: #ffb020;
-  background: rgba(255, 176, 32, 0.12);
 }
 .action-btn.is-disabled {
   opacity: 0.35;
@@ -205,25 +201,25 @@ page {
   align-self: center;
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   padding: 12px 0 24px;
 }
 .toolbar-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 6px 16px;
+  padding: 4px 12px;
   border-radius: 999px;
   background: var(--pill-bg);
 }
 .toolbar-btn__desc {
-  color: var(--pill-text);
-  font-size: 14px;
+  color: var(--fg);
+  font-size: 12px;
   line-height: 1.3;
 }
 .toolbar-btn__value {
   color: var(--dim);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.2;
   letter-spacing: 0.5px;
 }

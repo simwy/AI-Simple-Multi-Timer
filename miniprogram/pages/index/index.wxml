@@ -23,6 +23,9 @@
       <pomodoro-timer id="pomodoro-timer" class="mode-host {{mode === 'pomodoro' ? '' : 'hidden'}}"
                       data-mode="pomodoro" bind:statechange="onStateChange" />
     </view>
+
+    <!-- 与子时间等高的空占位，让主时间成为整组的垂直中心 -->
+    <view class="stage-balancer"></view>
   </view>
 
   <!-- 4 结束提示 -->
