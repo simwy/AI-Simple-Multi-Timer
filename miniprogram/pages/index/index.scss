@@ -630,6 +630,11 @@ page {
   border-radius: 10px;
   padding: 6px 0;
   font-size: 20px;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+}
+.panel-input.is-focused {
+  border-color: var(--accent);
 }
 .panel-colon {
   font-size: 20px;
@@ -665,7 +670,7 @@ page {
 }
 .contact-body {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 20px;
 }
 .contact-info {
@@ -703,7 +708,7 @@ page {
 .contact-qr {
   display: block;
   flex: none;
-  width: 140px;
+  width: 160px;
   height: auto;
   margin: 0;
   border-radius: 10px;

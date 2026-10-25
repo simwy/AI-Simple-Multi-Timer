@@ -207,6 +207,9 @@ Component({
     contactPanelVisible: false,
     contactQrVisible: true,
     wechatId: 'chenshiming0802',
+
+    // 弹出框输入框当前聚焦项，用于高亮「可输入」状态
+    focusField: '',
   },
 
   lifetimes: {
@@ -432,16 +435,17 @@ Component({
         durH: Math.floor(totalSec / 3600),
         durM: Math.floor((totalSec % 3600) / 60),
         durS: totalSec % 60,
+        focusField: '',
       })
     },
     // ===== 闹钟 =====
     onAlarmTap() {
       const stored = wx.getStorageSync('timer.alarm')
       if (stored && stored.on) {
-        this.setData({ alarmPanelVisible: true, alarmH: stored.hour, alarmM: stored.minute })
+        this.setData({ alarmPanelVisible: true, alarmH: stored.hour, alarmM: stored.minute, focusField: '' })
       } else {
         const now = new Date()
-        this.setData({ alarmPanelVisible: true, alarmH: now.getHours(), alarmM: now.getMinutes() })
+        this.setData({ alarmPanelVisible: true, alarmH: now.getHours(), alarmM: now.getMinutes(), focusField: '' })
       }
     },
     closeAlarmPanel() {
@@ -501,6 +505,12 @@ Component({
     },
     onDurSInput(e: any) {
       this.setData({ durS: Number(e.detail.value) || 0 })
+    },
+    onInputFocus(e: any) {
+      this.setData({ focusField: e.currentTarget.dataset.field || '' })
+    },
+    onInputBlur() {
+      this.setData({ focusField: '' })
     },
     applyDuration() {
       const action = pendingAction

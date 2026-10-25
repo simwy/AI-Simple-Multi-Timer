@@ -186,15 +186,18 @@
     <view class="panel-title">{{durationTitle}}</view>
     <view class="panel-label">时长（时 : 分 : 秒）</view>
     <view class="panel-row">
-      <input class="panel-input" type="number" value="{{durH}}" bindinput="onDurHInput" />
+      <input class="panel-input {{focusField === 'durH' ? 'is-focused' : ''}}" type="number" value="{{durH}}"
+             data-field="durH" bindinput="onDurHInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
       <text class="panel-colon">:</text>
-      <input class="panel-input" type="number" value="{{durM}}" bindinput="onDurMInput" />
+      <input class="panel-input {{focusField === 'durM' ? 'is-focused' : ''}}" type="number" value="{{durM}}"
+             data-field="durM" bindinput="onDurMInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
       <text class="panel-colon">:</text>
-      <input class="panel-input" type="number" value="{{durS}}" bindinput="onDurSInput" />
+      <input class="panel-input {{focusField === 'durS' ? 'is-focused' : ''}}" type="number" value="{{durS}}"
+             data-field="durS" bindinput="onDurSInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
     </view>
     <view class="panel-actions">
-      <button class="panel-btn" bindtap="applyDuration">确定</button>
       <button class="panel-btn secondary" bindtap="closeDurationPanel">关闭</button>
+      <button class="panel-btn" bindtap="applyDuration">确定</button>
     </view>
   </view>
 
@@ -204,14 +207,16 @@
     <view class="panel-title">闹钟</view>
     <view class="panel-label">时间（时 : 分）</view>
     <view class="panel-row">
-      <input class="panel-input" type="number" value="{{alarmH}}" bindinput="onAlarmHInput" />
+      <input class="panel-input {{focusField === 'alarmH' ? 'is-focused' : ''}}" type="number" value="{{alarmH}}"
+             data-field="alarmH" bindinput="onAlarmHInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
       <text class="panel-colon">:</text>
-      <input class="panel-input" type="number" value="{{alarmM}}" bindinput="onAlarmMInput" />
+      <input class="panel-input {{focusField === 'alarmM' ? 'is-focused' : ''}}" type="number" value="{{alarmM}}"
+             data-field="alarmM" bindinput="onAlarmMInput" bindfocus="onInputFocus" bindblur="onInputBlur" />
     </view>
     <view class="panel-actions">
-      <button class="panel-btn" bindtap="applyAlarm">确定</button>
-      <button class="panel-btn secondary" wx:if="{{alarmOn}}" bindtap="clearAlarm">关闭闹钟</button>
       <button class="panel-btn secondary" bindtap="closeAlarmPanel">取消</button>
+      <button class="panel-btn secondary" wx:if="{{alarmOn}}" bindtap="clearAlarm">关闭闹钟</button>
+      <button class="panel-btn" bindtap="applyAlarm">确定</button>
     </view>
   </view>
 
@@ -235,16 +240,16 @@
   <!-- 10 联系我 -->
   <view class="mask" wx:if="{{contactPanelVisible}}" catchtap="closeContactPanel"></view>
   <view class="panel contact-panel" wx:if="{{contactPanelVisible}}" catchtap="onUIAreaTap">
-    <view class="panel-title">联系我</view>
     <!-- 横屏高度有限：左侧文字与按钮，右侧二维码，避免竖排超屏 -->
     <view class="contact-body">
       <view class="contact-info">
+        <view class="panel-title">联系我</view>
         <view class="contact-tip">使用遇到问题，或想要新功能，直接加我微信</view>
         <view class="contact-tip">如需开发小程序，也可以加我。</view>
         <text class="contact-id" selectable>{{wechatId}}</text>
         <view class="panel-actions">
-          <button class="panel-btn" bindtap="copyWechatId">复制微信号</button>
           <button class="panel-btn secondary" bindtap="closeContactPanel">关闭</button>
+          <button class="panel-btn" bindtap="copyWechatId">复制微信号</button>
         </view>
       </view>
       <image class="contact-qr" wx:if="{{contactQrVisible}}" src="/assets/contact-qr.png"
